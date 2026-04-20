@@ -1,0 +1,21 @@
+version: '3.2'
+services:
+
+  cactus:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/Cactus/Dockerfile
+    volumes:
+      - type: bind
+        source: ./results
+        target: /results
+      - type: bind
+        source: ./input_data
+        target: /input_data
+    command:
+      - /bin/bash
+      - -c
+      - |
+        cactus-pangenome --help
