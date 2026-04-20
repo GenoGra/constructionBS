@@ -1,6 +1,5 @@
-version: '3.2'
 services:
-
+  
   cactus:
     stdin_open: true
     tty: true
@@ -19,3 +18,76 @@ services:
       - -c
       - |
         cactus-pangenome --help
+
+  minigraph:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/Minigraph/Dockerfile
+    volumes:
+      - type: bind
+        source: ./results
+        target: /results
+      - type: bind
+        source: ./input_data
+        target: /input_data
+    command:
+      - /bin/bash
+      - -c
+      - |
+        cd /minigraph && ./minigraph
+  minigraphcactus:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/MinigraphCactus/Dockerfile
+    volumes:
+      - type: bind
+        source: ./results
+        target: /results
+      - type: bind
+        source: ./input_data
+        target: /input_data
+    command:
+      - /bin/bash
+      - -c
+      - |
+        cactus-pangenome --help
+  pggb:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/PGGB/Dockerfile
+    volumes:
+      - type: bind
+        source: ./results
+        target: /results
+      - type: bind
+        source: ./input_data
+        target: /input_data
+    command:
+      - /bin/bash
+      - -c
+      - |
+        cd /pggb && ./pggb
+  progressivecactus:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/ProgressiveCactus/Dockerfile
+    volumes:
+      - type: bind
+        source: ./results
+        target: /results
+      - type: bind
+        source: ./input_data
+        target: /input_data
+    command:
+      - /bin/bash
+      - -c
+      - |
+        cactus --help

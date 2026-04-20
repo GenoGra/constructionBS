@@ -1,7 +1,14 @@
-# In this file, you can configure which tools to include in your tests.
-# For each tool, you can provide a specific commit (or tag) to be used in your test.
-# By default, we include all the tools, with the respective versions employed in our experiment.
-# You can indicate a different commit/tag, or completely exclude a tool by commenting the respective lines.
-
 Cactus:
-  version: v2.9.1
+  version: v3.1.4 
+
+Minigraph:
+  version: 7e3e65c
+
+MinigraphCactus:
+  version: v3.1.4 
+
+PGGB:
+  version: e25486b
+
+ProgressiveCactus:
+  version: v3.1.4 
