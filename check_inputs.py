@@ -32,6 +32,9 @@ def format_directory_line(name: str, info: dict) -> str:
 
 
 def format_valid_files_line(dirname: str, info: dict) -> str:
+    """
+    Format a line describing the status of valid files in a dataset directory.
+    """
     if info["has_valid_files"]:
         return (
             f"- {dirname}: valid files found "
@@ -43,6 +46,9 @@ def format_valid_files_line(dirname: str, info: dict) -> str:
 
 
 def format_tool_runnability_line(tool_name: str, info: dict) -> str:
+    """
+    Format a line describing the runnability status of a tool for a dataset.
+    """
     if info["runnable"]:
         return f"- {tool_name}: runnable"
 
@@ -126,6 +132,9 @@ def print_dataset_report(report: dict) -> None:
 
 
 def format_resolved_inputs_line(tool_name: str, info: dict) -> str:
+    """
+    Format a line describing the resolved inputs status for a tool.
+    """
     if info["resolved"]:
         input_keys = ", ".join(info["inputs"].keys())
         return f"- {tool_name}: resolved ({input_keys})"
