@@ -1,0 +1,7 @@
+name: DATASET_PLACEHOLDER
+description: dataset fittizio per preparare la struttura della benchmark suite
+assemblies_present: false
+graph_present: false
+reads_present: false
+tree_present: false
+notes: null
