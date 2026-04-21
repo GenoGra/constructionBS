@@ -31,6 +31,29 @@ def format_directory_line(name: str, info: dict) -> str:
     return f"- {name}: present, not empty ({info['files_count']} items)"
 
 
+def format_valid_files_line(dirname: str, info: dict) -> str:
+    if info["has_valid_files"]:
+        return (
+            f"- {dirname}: valid files found "
+            f"({info['matching_count']})"
+        )
+
+    suffixes = ", ".join(info["expected_suffixes"]) if info["expected_suffixes"] else "none"
+    return f"- {dirname}: no valid files found (expected: {suffixes})"
+
+
+def format_tool_runnability_line(tool_name: str, info: dict) -> str:
+    if info["runnable"]:
+        return f"- {tool_name}: runnable"
+
+    if info["missing_requirements"]:
+        missing = "; ".join(info["missing_requirements"])
+        return f"- {tool_name}: not runnable ({missing})"
+
+    reason = info["reason"] if info["reason"] else "unknown reason"
+    return f"- {tool_name}: not runnable ({reason})"
+
+
 def print_dataset_report(report: dict) -> None:
     """
     Print a formatted dataset inspection report.
@@ -69,10 +92,50 @@ def print_dataset_report(report: dict) -> None:
         print("- none declared")
     print()
 
+    print("Valid files by directory:")
+    file_checks = report.get("file_checks", {})
+    if file_checks:
+        for dirname, info in file_checks.items():
+            print(format_valid_files_line(dirname, info))
+    else:
+        print("- no file checks available")
+    print()
+
+    print("Tool runnability:")
+    tool_runnability = report.get("tool_runnability", {})
+    if tool_runnability:
+        for tool_name, info in tool_runnability.items():
+            print(format_tool_runnability_line(tool_name, info))
+    else:
+        print("- no tool runnability information available")
+    print()
+
+    print("Resolved inputs by tool:")
+    resolved_inputs = report.get("resolved_inputs", {})
+    if resolved_inputs:
+        for tool_name, info in resolved_inputs.items():
+            print(format_resolved_inputs_line(tool_name, info))
+    else:
+        print("- no resolved input information available")
+    print()
+
     print("Overall result:")
     print(f"- structure_ok: {format_bool(report['structure']['structure_ok'])}")
     print(f"- ready_for_real_runs: {format_bool(report['ready_for_real_runs'])}")
     print()
+
+
+def format_resolved_inputs_line(tool_name: str, info: dict) -> str:
+    if info["resolved"]:
+        input_keys = ", ".join(info["inputs"].keys())
+        return f"- {tool_name}: resolved ({input_keys})"
+
+    if info["missing"]:
+        missing = ", ".join(info["missing"])
+        return f"- {tool_name}: unresolved (missing: {missing})"
+
+    reason = info["reason"] if info["reason"] else "unknown reason"
+    return f"- {tool_name}: unresolved ({reason})"
 
 
 def main() -> None:
@@ -108,8 +171,12 @@ def main() -> None:
         return
 
     for dataset_path in datasets:
-        report = inspect_dataset(dataset_path)
-        print_dataset_report(report)
+        try:
+            report = inspect_dataset(dataset_path)
+            print_dataset_report(report)
+        except Exception as e:
+            print(f"[ERROR] Failed to inspect dataset {dataset_path.name}: {e}")
+            print()
 
 
 if __name__ == "__main__":
