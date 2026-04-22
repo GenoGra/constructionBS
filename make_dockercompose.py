@@ -2,7 +2,7 @@
 
 import yaml
 from pathlib import Path
-from dataset_utils import find_datasets, inspect_dataset
+from dataset_utils import find_datasets, inspect_dataset, create_results_structure
 
 DOCKER_COMPOSE_HEADER = '''\
 services:
@@ -143,6 +143,14 @@ def main():
 
     if not ready_datasets:
         print("\nNo datasets ready for real runs. Generating help-only docker-compose.\n")
+
+    # Create standard results structure for all detected datasets
+    for dataset_path in datasets:
+        create_results_structure(dataset_path.name, list(config.keys()))
+
+    if datasets:
+        print("Results structure ensured for detected datasets.\n")
+
 
 if __name__ == '__main__':
     main()

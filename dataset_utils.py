@@ -374,3 +374,70 @@ def get_tool_inputs(tool_name: str, dataset_report: dict[str, Any]) -> ToolInput
 
     result["resolved"] = True
     return result
+
+def get_results_root() -> Path:
+    """
+    Return the root results directory.
+    """
+    return Path("results")
+
+
+def get_dataset_results_path(dataset_name: str) -> Path:
+    """
+    Return the results path for a dataset.
+    """
+    return get_results_root() / dataset_name
+
+
+def get_tool_results_path(dataset_name: str, tool_name: str) -> Path:
+    """
+    Return the results path for a tool inside a dataset.
+    """
+    return get_dataset_results_path(dataset_name) / tool_name
+
+
+def get_tool_outputs_path(dataset_name: str, tool_name: str) -> Path:
+    """
+    Return the outputs directory for a tool inside a dataset.
+    """
+    return get_tool_results_path(dataset_name, tool_name) / "outputs"
+
+
+def get_tool_logs_path(dataset_name: str, tool_name: str) -> Path:
+    """
+    Return the logs directory for a tool inside a dataset.
+    """
+    return get_tool_results_path(dataset_name, tool_name) / "logs"
+
+
+def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[str, dict[str, str]]:
+    """
+    Create the standard results structure for a dataset and a list of tools.
+
+    Structure:
+        results/
+          DATASET_NAME/
+            TOOL_NAME/
+              outputs/
+              logs/
+
+    Returns a dictionary with created paths.
+    """
+    created_paths: dict[str, dict[str, str]] = {}
+
+    dataset_path = get_dataset_results_path(dataset_name)
+    dataset_path.mkdir(parents=True, exist_ok=True)
+
+    for tool_name in tool_names:
+        outputs_path = get_tool_outputs_path(dataset_name, tool_name)
+        logs_path = get_tool_logs_path(dataset_name, tool_name)
+
+        outputs_path.mkdir(parents=True, exist_ok=True)
+        logs_path.mkdir(parents=True, exist_ok=True)
+
+        created_paths[tool_name] = {
+            "outputs": str(outputs_path),
+            "logs": str(logs_path),
+        }
+
+    return created_paths
