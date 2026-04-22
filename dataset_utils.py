@@ -1,13 +1,16 @@
 from __future__ import annotations
-from run_config import TOOL_REQUIREMENTS, EXPECTED_FILE_TYPES, TOOL_INPUT_SPECS
 
 from pathlib import Path
 from typing import Any, Dict, TypedDict
+
 import yaml
+
+from run_config import TOOL_REQUIREMENTS, EXPECTED_FILE_TYPES, TOOL_INPUT_SPECS
 
 
 STANDARD_DIRS = ["ASSEMBLIES", "GRAPH", "META", "READS", "TREE"]
 METADATA_RELATIVE_PATH = Path("META") / "dataset_info.yml"
+VALID_INPUT_MODES = {"many", "single"}
 
 INPUT_TO_DIR_MAPPING = {
     "assemblies": "ASSEMBLIES",
@@ -32,6 +35,48 @@ class ToolInputs(TypedDict):
     reason: str | None
 
 
+class DirectoryState(TypedDict):
+    exists: bool
+    is_dir: bool
+    empty: bool | None
+    files_count: int
+
+
+class DatasetStructure(TypedDict):
+    directories: dict[str, DirectoryState]
+    structure_ok: bool
+
+
+class DatasetMetadataInfo(TypedDict):
+    metadata_path: str
+    metadata_exists: bool
+    metadata: Dict[str, Any]
+
+
+class DirectoryFileCheck(TypedDict):
+    directory: str
+    path: str
+    expected_suffixes: list[str]
+    matching_files: list[str]
+    matching_count: int
+    has_valid_files: bool
+
+
+class DatasetReport(TypedDict):
+    dataset_name: str
+    dataset_path: str
+    structure: DatasetStructure
+    metadata_info: DatasetMetadataInfo
+    status: str
+    description: str | None
+    expected_inputs: Dict[str, Any]
+    supported_workflows: Dict[str, Any]
+    file_checks: dict[str, DirectoryFileCheck]
+    ready_for_real_runs: bool
+    tool_runnability: dict[str, ToolRunnability]
+    resolved_inputs: dict[str, ToolInputs]
+
+
 def load_yaml_file(path: Path) -> Dict[str, Any]:
     """
     Load a YAML file and return a dictionary.
@@ -49,7 +94,7 @@ def load_yaml_file(path: Path) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def check_directory_state(path: Path) -> Dict[str, Any]:
+def check_directory_state(path: Path) -> DirectoryState:
     """
     Return basic information about a directory:
     - exists
@@ -77,7 +122,7 @@ def check_directory_state(path: Path) -> Dict[str, Any]:
     }
 
 
-def check_dataset_structure(dataset_path: Path) -> Dict[str, Any]:
+def check_dataset_structure(dataset_path: Path) -> DatasetStructure:
     """
     Check whether all standard directories exist inside the dataset path.
     """
@@ -101,7 +146,7 @@ def get_metadata_path(dataset_path: Path) -> Path:
     return dataset_path / METADATA_RELATIVE_PATH
 
 
-def load_dataset_metadata(dataset_path: Path) -> Dict[str, Any]:
+def load_dataset_metadata(dataset_path: Path) -> DatasetMetadataInfo:
     """
     Load dataset metadata from META/dataset_info.yml.
     """
@@ -115,7 +160,10 @@ def load_dataset_metadata(dataset_path: Path) -> Dict[str, Any]:
     }
 
 
-def infer_ready_for_real_runs(structure: Dict[str, Any], metadata: Dict[str, Any]) -> bool:
+def infer_ready_for_real_runs(
+    structure: DatasetStructure,
+    metadata: DatasetMetadataInfo,
+) -> bool:
     """
     Infer if a dataset is ready for real runs.
     Current policy:
@@ -149,41 +197,58 @@ def infer_ready_for_real_runs(structure: Dict[str, Any], metadata: Dict[str, Any
     return True
 
 
-def inspect_dataset(dataset_path: Path) -> Dict[str, Any]:
+def build_dataset_report_base(dataset_path: Path) -> DatasetReport:
     """
-    Build a complete inspection report for a dataset.
+    Build the core dataset report before tool-specific enrichment.
     """
     structure = check_dataset_structure(dataset_path)
     metadata = load_dataset_metadata(dataset_path)
     meta = metadata["metadata"]
     file_checks = inspect_dataset_files(dataset_path)
 
-    report = {
+    return {
         "dataset_name": dataset_path.name,
         "dataset_path": str(dataset_path),
         "structure": structure,
         "metadata_info": metadata,
         "status": meta.get("status", "unknown"),
-        "description": meta.get("description", None),
+        "description": meta.get("description"),
         "expected_inputs": meta.get("expected_inputs", {}),
         "supported_workflows": meta.get("supported_workflows", {}),
         "file_checks": file_checks,
+        "ready_for_real_runs": infer_ready_for_real_runs(structure, metadata),
+        "tool_runnability": {},
+        "resolved_inputs": {},
     }
 
-    report["ready_for_real_runs"] = infer_ready_for_real_runs(structure, metadata)
 
-    tool_runnability = {
+def attach_tool_runnability(report: DatasetReport) -> None:
+    """
+    Populate tool runnability information in-place.
+    """
+    report["tool_runnability"] = {
         tool_name: get_tool_runnability(tool_name, report)
         for tool_name in TOOL_REQUIREMENTS
     }
-    report["tool_runnability"] = tool_runnability
 
-    resolved_inputs = {
+
+def attach_resolved_inputs(report: DatasetReport) -> None:
+    """
+    Populate resolved tool inputs in-place.
+    """
+    report["resolved_inputs"] = {
         tool_name: get_tool_inputs(tool_name, report)
         for tool_name in TOOL_INPUT_SPECS
     }
-    report["resolved_inputs"] = resolved_inputs
 
+
+def inspect_dataset(dataset_path: Path) -> DatasetReport:
+    """
+    Build a complete inspection report for a dataset.
+    """
+    report = build_dataset_report_base(dataset_path)
+    attach_tool_runnability(report)
+    attach_resolved_inputs(report)
     return report
 
 
@@ -199,7 +264,12 @@ def find_datasets(input_data_path: Path) -> list[Path]:
         key=lambda p: p.name.lower(),
     )
 
-def _check_requirement(dirname: str, dir_info: dict[str, Any] | None, file_checks: dict[str, Any]) -> str | None:
+
+def _check_requirement(
+    dirname: str,
+    dir_info: DirectoryState | None,
+    file_checks: dict[str, DirectoryFileCheck],
+) -> str | None:
     """
     Check if a single directory requirement is satisfied.
     Return error reason if not satisfied, None if satisfied.
@@ -227,7 +297,7 @@ def _check_requirement(dirname: str, dir_info: dict[str, Any] | None, file_check
     return None
 
 
-def get_tool_runnability(tool_name: str, dataset_report: dict[str, Any]) -> ToolRunnability:
+def get_tool_runnability(tool_name: str, dataset_report: DatasetReport) -> ToolRunnability:
     """
     Determine whether a tool is runnable on a given dataset report.
     """
@@ -285,7 +355,7 @@ def find_matching_files(directory: Path, allowed_suffixes: list[str]) -> list[Pa
     )
 
 
-def inspect_directory_files(dirname: str, dataset_path: Path) -> dict[str, Any]:
+def inspect_directory_files(dirname: str, dataset_path: Path) -> DirectoryFileCheck:
     """
     Inspect valid files for one standard dataset directory.
     """
@@ -303,14 +373,18 @@ def inspect_directory_files(dirname: str, dataset_path: Path) -> dict[str, Any]:
         "has_valid_files": len(matching_files) > 0,
     }
 
-def inspect_dataset_files(dataset_path: Path) -> dict[str, Any]:
+def inspect_dataset_files(dataset_path: Path) -> dict[str, DirectoryFileCheck]:
     """
     Inspect all standard dataset directories for expected file types.
     """
     return {dirname: inspect_directory_files(dirname, dataset_path) for dirname in STANDARD_DIRS}
 
 
-def _resolve_input_spec(input_key: str, spec: dict[str, Any], file_checks: dict[str, Any]) -> tuple[bool, Any | None]:
+def _resolve_input_spec(
+    input_key: str,
+    spec: dict[str, Any],
+    file_checks: dict[str, DirectoryFileCheck],
+) -> tuple[bool, Any | None]:
     """
     Resolve a single input specification.
     Return (resolved, value) where:
@@ -328,13 +402,13 @@ def _resolve_input_spec(input_key: str, spec: dict[str, Any], file_checks: dict[
 
     if mode == "many":
         return (bool(matching_files), matching_files if matching_files else None)
-    elif mode == "single":
+    if mode == "single":
         return (bool(matching_files), matching_files[0] if matching_files else None)
-    else:
-        return (False, None)
+
+    return (False, None)
 
 
-def get_tool_inputs(tool_name: str, dataset_report: dict[str, Any]) -> ToolInputs:
+def get_tool_inputs(tool_name: str, dataset_report: DatasetReport) -> ToolInputs:
     """
     Resolve concrete input file paths for a given tool using dataset file checks.
 
@@ -363,7 +437,7 @@ def get_tool_inputs(tool_name: str, dataset_report: dict[str, Any]) -> ToolInput
             result["inputs"][input_key] = value
         else:
             mode = spec.get("mode")
-            if mode not in ["many", "single"]:
+            if mode not in VALID_INPUT_MODES:
                 result["missing"].append(f"{input_key} (invalid mode '{mode}')")
             else:
                 result["missing"].append(input_key)
@@ -374,6 +448,7 @@ def get_tool_inputs(tool_name: str, dataset_report: dict[str, Any]) -> ToolInput
 
     result["resolved"] = True
     return result
+
 
 def get_results_root() -> Path:
     """
@@ -410,6 +485,20 @@ def get_tool_logs_path(dataset_name: str, tool_name: str) -> Path:
     return get_tool_results_path(dataset_name, tool_name) / "logs"
 
 
+def get_tool_execution_log_path(dataset_name: str, tool_name: str) -> Path:
+    """
+    Return the execution log path for a tool inside a dataset.
+    """
+    return get_tool_logs_path(dataset_name, tool_name) / "execution.log"
+
+
+def get_tool_timing_log_path(dataset_name: str, tool_name: str) -> Path:
+    """
+    Return the timing log path for a tool inside a dataset.
+    """
+    return get_tool_logs_path(dataset_name, tool_name) / "timing.log"
+
+
 def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[str, dict[str, str]]:
     """
     Create the standard results structure for a dataset and a list of tools.
@@ -420,6 +509,8 @@ def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[s
             TOOL_NAME/
               outputs/
               logs/
+                execution.log
+                timing.log
 
     Returns a dictionary with created paths.
     """
@@ -435,9 +526,17 @@ def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[s
         outputs_path.mkdir(parents=True, exist_ok=True)
         logs_path.mkdir(parents=True, exist_ok=True)
 
+        execution_log_path = get_tool_execution_log_path(dataset_name, tool_name)
+        timing_log_path = get_tool_timing_log_path(dataset_name, tool_name)
+
+        execution_log_path.touch(exist_ok=True)
+        timing_log_path.touch(exist_ok=True)
+
         created_paths[tool_name] = {
             "outputs": str(outputs_path),
             "logs": str(logs_path),
+            "execution_log": str(execution_log_path),
+            "timing_log": str(timing_log_path),
         }
 
     return created_paths
