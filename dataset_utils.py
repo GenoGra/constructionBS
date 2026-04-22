@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, TypedDict
 
 import yaml
+import shlex
 
 from run_config import TOOL_REQUIREMENTS, EXPECTED_FILE_TYPES, TOOL_INPUT_SPECS
 
@@ -540,3 +541,48 @@ def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[s
         }
 
     return created_paths
+
+
+def build_wrapped_command(
+    dataset_name: str,
+    tool_name: str,
+    real_command: str,
+) -> str:
+    """
+    Wrap a real tool command with standard execution/timing logging.
+
+    Standard wrapper:
+        /usr/bin/time -v -o <timing_log> bash -c "<real_command>" > <execution_log> 2>&1
+
+    Returns the wrapped shell command as a string.
+    """
+    execution_log = get_tool_execution_log_path(dataset_name, tool_name)
+    timing_log = get_tool_timing_log_path(dataset_name, tool_name)
+
+    quoted_real_command = shlex.quote(real_command)
+    quoted_execution_log = shlex.quote(str(execution_log))
+    quoted_timing_log = shlex.quote(str(timing_log))
+
+    return (
+        f"/usr/bin/time -v -o {quoted_timing_log} "
+        f"bash -c {quoted_real_command} "
+        f"> {quoted_execution_log} 2>&1"
+    )
+
+
+def get_wrapped_command_preview(
+    dataset_name: str,
+    tool_name: str,
+    real_command: str,
+) -> dict[str, str]:
+    """
+    Return a structured preview of the wrapped command and log destinations.
+    """
+    return {
+        "tool": tool_name,
+        "dataset": dataset_name,
+        "real_command": real_command,
+        "wrapped_command": build_wrapped_command(dataset_name, tool_name, real_command),
+        "execution_log": str(get_tool_execution_log_path(dataset_name, tool_name)),
+        "timing_log": str(get_tool_timing_log_path(dataset_name, tool_name)),
+    }
