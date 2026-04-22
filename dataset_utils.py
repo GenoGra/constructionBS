@@ -172,10 +172,16 @@ def inspect_dataset(dataset_path: Path) -> Dict[str, Any]:
 
     report["ready_for_real_runs"] = infer_ready_for_real_runs(structure, metadata)
 
-    tool_runnability = {tool_name: get_tool_runnability(tool_name, report) for tool_name in TOOL_REQUIREMENTS}
+    tool_runnability = {
+        tool_name: get_tool_runnability(tool_name, report)
+        for tool_name in TOOL_REQUIREMENTS
+    }
     report["tool_runnability"] = tool_runnability
 
-    resolved_inputs = {tool_name: get_tool_inputs(tool_name, report) for tool_name in TOOL_INPUT_SPECS}
+    resolved_inputs = {
+        tool_name: get_tool_inputs(tool_name, report)
+        for tool_name in TOOL_INPUT_SPECS
+    }
     report["resolved_inputs"] = resolved_inputs
 
     return report
@@ -193,7 +199,35 @@ def find_datasets(input_data_path: Path) -> list[Path]:
         key=lambda p: p.name.lower(),
     )
 
-def get_tool_runnability(tool_name: str, dataset_report: dict) -> ToolRunnability:
+def _check_requirement(dirname: str, dir_info: dict[str, Any] | None, file_checks: dict[str, Any]) -> str | None:
+    """
+    Check if a single directory requirement is satisfied.
+    Return error reason if not satisfied, None if satisfied.
+    """
+    if dir_info is None:
+        return f"{dirname} (not declared)"
+
+    if not dir_info["exists"]:
+        return f"{dirname} (missing)"
+
+    if not dir_info["is_dir"]:
+        return f"{dirname} (not a directory)"
+
+    # META is structural: it is required to exist, but not to contain "valid input files"
+    if dirname == "META":
+        return None
+
+    file_info = file_checks.get(dirname)
+    if file_info is None:
+        return f"{dirname} (no file check)"
+
+    if not file_info.get("has_valid_files", False):
+        return f"{dirname} (no valid files)"
+
+    return None
+
+
+def get_tool_runnability(tool_name: str, dataset_report: dict[str, Any]) -> ToolRunnability:
     """
     Determine whether a tool is runnable on a given dataset report.
     """
@@ -215,32 +249,22 @@ def get_tool_runnability(tool_name: str, dataset_report: dict) -> ToolRunnabilit
 
     required_dirs = requirements.get("required_dirs", [])
     directories = dataset_report["structure"]["directories"]
+    file_checks = dataset_report.get("file_checks", {})
 
     for dirname in required_dirs:
         dir_info = directories.get(dirname)
+        requirement_error = _check_requirement(dirname, dir_info, file_checks)
 
-        if dir_info is None:
-            result["missing_requirements"].append(f"{dirname} (not declared)")
-            continue
-
-        if not dir_info["exists"]:
-            result["missing_requirements"].append(f"{dirname} (missing)")
-            continue
-
-        if not dir_info["is_dir"]:
-            result["missing_requirements"].append(f"{dirname} (not a directory)")
-            continue
-
-        if dir_info["empty"]:
-            result["missing_requirements"].append(f"{dirname} (empty)")
-            continue
+        if requirement_error is not None:
+            result["missing_requirements"].append(requirement_error)
 
     if result["missing_requirements"]:
-        result["reason"] = "missing or empty required directories"
+        result["reason"] = "missing required inputs"
         return result
 
     result["runnable"] = True
     return result
+
 
 def find_matching_files(directory: Path, allowed_suffixes: list[str]) -> list[Path]:
     """
@@ -261,31 +285,56 @@ def find_matching_files(directory: Path, allowed_suffixes: list[str]) -> list[Pa
     )
 
 
-def inspect_directory_files(dirname: str, dataset_path: Path) -> dict:
-        """
-        Inspect valid files for one standard dataset directory.
-        """
-        dir_path = dataset_path / dirname
-        expected_suffixes = EXPECTED_FILE_TYPES.get(dirname, [])
+def inspect_directory_files(dirname: str, dataset_path: Path) -> dict[str, Any]:
+    """
+    Inspect valid files for one standard dataset directory.
+    """
+    dir_path = dataset_path / dirname
+    expected_suffixes = EXPECTED_FILE_TYPES.get(dirname, [])
 
-        matching_files = find_matching_files(dir_path, expected_suffixes)
+    matching_files = find_matching_files(dir_path, expected_suffixes)
 
-        return {
-            "directory": dirname,
-            "path": str(dir_path),
-            "expected_suffixes": expected_suffixes,
-            "matching_files": [str(path) for path in matching_files],
-            "matching_count": len(matching_files),
-            "has_valid_files": len(matching_files) > 0,
-        }
+    return {
+        "directory": dirname,
+        "path": str(dir_path),
+        "expected_suffixes": expected_suffixes,
+        "matching_files": [str(path) for path in matching_files],
+        "matching_count": len(matching_files),
+        "has_valid_files": len(matching_files) > 0,
+    }
 
-def inspect_dataset_files(dataset_path: Path) -> dict:
+def inspect_dataset_files(dataset_path: Path) -> dict[str, Any]:
     """
     Inspect all standard dataset directories for expected file types.
     """
-    return {dirname: inspect_directory_files(dirname, dataset_path) for dirname in EXPECTED_FILE_TYPES}
+    return {dirname: inspect_directory_files(dirname, dataset_path) for dirname in STANDARD_DIRS}
 
-def get_tool_inputs(tool_name: str, dataset_report: dict) -> ToolInputs:
+
+def _resolve_input_spec(input_key: str, spec: dict[str, Any], file_checks: dict[str, Any]) -> tuple[bool, Any | None]:
+    """
+    Resolve a single input specification.
+    Return (resolved, value) where:
+      - resolved=False, value=None if input could not be resolved
+      - resolved=True, value=<file or files> if input was resolved
+    """
+    source_dir = spec["source"]
+    mode = spec["mode"]
+
+    dir_info = file_checks.get(source_dir)
+    if dir_info is None:
+        return (False, None)
+
+    matching_files = dir_info.get("matching_files", [])
+
+    if mode == "many":
+        return (bool(matching_files), matching_files if matching_files else None)
+    elif mode == "single":
+        return (bool(matching_files), matching_files[0] if matching_files else None)
+    else:
+        return (False, None)
+
+
+def get_tool_inputs(tool_name: str, dataset_report: dict[str, Any]) -> ToolInputs:
     """
     Resolve concrete input file paths for a given tool using dataset file checks.
 
@@ -308,30 +357,16 @@ def get_tool_inputs(tool_name: str, dataset_report: dict) -> ToolInputs:
     file_checks = dataset_report.get("file_checks", {})
 
     for input_key, spec in specs.items():
-        source_dir = spec["source"]
-        mode = spec["mode"]
+        resolved, value = _resolve_input_spec(input_key, spec, file_checks)
 
-        dir_info = file_checks.get(source_dir)
-        if dir_info is None:
-            result["missing"].append(input_key)
-            continue
-
-        matching_files = dir_info.get("matching_files", [])
-
-        if mode == "many":
-            if not matching_files:
-                result["missing"].append(input_key)
-            else:
-                result["inputs"][input_key] = matching_files
-
-        elif mode == "single":
-            if not matching_files:
-                result["missing"].append(input_key)
-            else:
-                result["inputs"][input_key] = matching_files[0]
-
+        if resolved:
+            result["inputs"][input_key] = value
         else:
-            result["missing"].append(f"{input_key} (invalid mode '{mode}')")
+            mode = spec.get("mode")
+            if mode not in ["many", "single"]:
+                result["missing"].append(f"{input_key} (invalid mode '{mode}')")
+            else:
+                result["missing"].append(input_key)
 
     if result["missing"]:
         result["reason"] = "one or more required inputs could not be resolved"

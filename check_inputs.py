@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, Callable
 import argparse
 
 from dataset_utils import find_datasets, inspect_dataset
@@ -15,7 +16,7 @@ def format_bool(value: bool) -> str:
     return "true" if value else "false"
 
 
-def format_directory_line(name: str, info: dict) -> str:
+def format_directory_line(name: str, info: dict[str, Any]) -> str:
     """
     Format a directory status line for display.
     """
@@ -31,7 +32,7 @@ def format_directory_line(name: str, info: dict) -> str:
     return f"- {name}: present, not empty ({info['files_count']} items)"
 
 
-def format_valid_files_line(dirname: str, info: dict) -> str:
+def format_valid_files_line(dirname: str, info: dict[str, Any]) -> str:
     """
     Format a line describing the status of valid files in a dataset directory.
     """
@@ -45,7 +46,7 @@ def format_valid_files_line(dirname: str, info: dict) -> str:
     return f"- {dirname}: no valid files found (expected: {suffixes})"
 
 
-def format_tool_runnability_line(tool_name: str, info: dict) -> str:
+def format_tool_runnability_line(tool_name: str, info: dict[str, Any]) -> str:
     """
     Format a line describing the runnability status of a tool for a dataset.
     """
@@ -60,78 +61,7 @@ def format_tool_runnability_line(tool_name: str, info: dict) -> str:
     return f"- {tool_name}: not runnable ({reason})"
 
 
-def print_dataset_report(report: dict) -> None:
-    """
-    Print a formatted dataset inspection report.
-    """
-    print(f"=== Dataset check: {report['dataset_name']} ===")
-    print(f"Path: {report['dataset_path']}")
-    print(f"Status: {report['status']}")
-    print(f"Description: {report['description']}")
-    print()
-
-    print("Directories:")
-    for dirname, info in report["structure"]["directories"].items():
-        print(format_directory_line(dirname, info))
-    print()
-
-    print("Metadata:")
-    print(f"- metadata_exists: {format_bool(report['metadata_info']['metadata_exists'])}")
-    print(f"- metadata_path: {report['metadata_info']['metadata_path']}")
-    print()
-
-    print("Expected inputs:")
-    expected_inputs = report["expected_inputs"]
-    if expected_inputs:
-        for key, value in expected_inputs.items():
-            print(f"- {key}: {format_bool(bool(value))}")
-    else:
-        print("- none declared")
-    print()
-
-    print("Supported workflows:")
-    supported_workflows = report["supported_workflows"]
-    if supported_workflows:
-        for key, value in supported_workflows.items():
-            print(f"- {key}: {format_bool(bool(value))}")
-    else:
-        print("- none declared")
-    print()
-
-    print("Valid files by directory:")
-    file_checks = report.get("file_checks", {})
-    if file_checks:
-        for dirname, info in file_checks.items():
-            print(format_valid_files_line(dirname, info))
-    else:
-        print("- no file checks available")
-    print()
-
-    print("Tool runnability:")
-    tool_runnability = report.get("tool_runnability", {})
-    if tool_runnability:
-        for tool_name, info in tool_runnability.items():
-            print(format_tool_runnability_line(tool_name, info))
-    else:
-        print("- no tool runnability information available")
-    print()
-
-    print("Resolved inputs by tool:")
-    resolved_inputs = report.get("resolved_inputs", {})
-    if resolved_inputs:
-        for tool_name, info in resolved_inputs.items():
-            print(format_resolved_inputs_line(tool_name, info))
-    else:
-        print("- no resolved input information available")
-    print()
-
-    print("Overall result:")
-    print(f"- structure_ok: {format_bool(report['structure']['structure_ok'])}")
-    print(f"- ready_for_real_runs: {format_bool(report['ready_for_real_runs'])}")
-    print()
-
-
-def format_resolved_inputs_line(tool_name: str, info: dict) -> str:
+def format_resolved_inputs_line(tool_name: str, info: dict[str, Any]) -> str:
     """
     Format a line describing the resolved inputs status for a tool.
     """
@@ -145,6 +75,93 @@ def format_resolved_inputs_line(tool_name: str, info: dict) -> str:
 
     reason = info["reason"] if info["reason"] else "unknown reason"
     return f"- {tool_name}: unresolved ({reason})"
+
+
+def _print_section(
+    title: str,
+    items: dict[str, Any],
+    format_fn: Callable[[str, Any], str],
+    empty_msg: str = "- none",
+) -> None:
+    """
+    Print a report section with a title, formatted items, and empty message.
+    """
+    print(f"{title}:")
+    if items:
+        for key, value in items.items():
+            print(format_fn(key, value))
+    else:
+        print(empty_msg)
+    print()
+
+
+def print_dataset_report(report: dict[str, Any]) -> None:
+    """
+    Print a formatted dataset inspection report.
+    """
+    print(f"=== Dataset check: {report['dataset_name']} ===")
+    print(f"Path: {report['dataset_path']}")
+    print(f"Status: {report['status']}")
+    print(f"Description: {report['description']}")
+    print()
+
+    # Directories
+    print("Directories:")
+    for dirname, info in report["structure"]["directories"].items():
+        print(format_directory_line(dirname, info))
+    print()
+
+    # Metadata
+    print("Metadata:")
+    print(f"- metadata_exists: {format_bool(report['metadata_info']['metadata_exists'])}")
+    print(f"- metadata_path: {report['metadata_info']['metadata_path']}")
+    print()
+
+    # Expected inputs
+    _print_section(
+        "Expected inputs",
+        report["expected_inputs"],
+        lambda k, v: f"- {k}: {format_bool(bool(v))}",
+        "- none declared",
+    )
+
+    # Supported workflows
+    _print_section(
+        "Supported workflows",
+        report["supported_workflows"],
+        lambda k, v: f"- {k}: {format_bool(bool(v))}",
+        "- none declared",
+    )
+
+    # Valid files by directory
+    _print_section(
+        "Valid files by directory",
+        report.get("file_checks", {}),
+        format_valid_files_line,
+        "- no file checks available",
+    )
+
+    # Tool runnability
+    _print_section(
+        "Tool runnability",
+        report.get("tool_runnability", {}),
+        format_tool_runnability_line,
+        "- no tool runnability information available",
+    )
+
+    # Resolved inputs by tool
+    _print_section(
+        "Resolved inputs by tool",
+        report.get("resolved_inputs", {}),
+        format_resolved_inputs_line,
+        "- no resolved input information available",
+    )
+
+    # Overall result
+    print("Overall result:")
+    print(f"- structure_ok: {format_bool(report['structure']['structure_ok'])}")
+    print(f"- ready_for_real_runs: {format_bool(report['ready_for_real_runs'])}")
+    print()
 
 
 def main() -> None:
