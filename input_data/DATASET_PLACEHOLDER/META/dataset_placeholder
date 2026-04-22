@@ -1,5 +1,5 @@
 name: DATASET_PLACEHOLDER
-description: dataset fittizio per preparare la struttura della benchmark suite
+description: dataset to prepare the benchmark suite structure
 assemblies_present: false
 graph_present: false
 reads_present: false

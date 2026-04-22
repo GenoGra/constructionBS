@@ -1,5 +1,5 @@
 name: DATASET_INFO
-description: dataset fittizio per preparare la struttura 
+description: dataset to prepare the benchmark suite structure
 status: placeholder
 
 expected_inputs:
