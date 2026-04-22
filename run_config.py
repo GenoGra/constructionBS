@@ -1,3 +1,8 @@
+"""
+Central configuration describing which dataset directories and input file types
+each tool requires, plus how tool inputs should be resolved from a dataset.
+"""
+
 TOOL_REQUIREMENTS = {
     "Cactus": {
         "required_dirs": ["ASSEMBLIES", "META"],

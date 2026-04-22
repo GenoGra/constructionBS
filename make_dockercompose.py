@@ -1,4 +1,7 @@
-# Generation of plan tool knowing if datasets are ready for real runs or not
+"""
+Generate the project ``docker-compose.yml`` from ``tools_config.yml`` and
+prepare per-dataset results folders after checking dataset readiness.
+"""
 
 import yaml
 from pathlib import Path

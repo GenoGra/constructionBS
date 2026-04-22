@@ -1,3 +1,8 @@
+"""
+Create Dockerfiles for each configured tool version using the templates defined
+in this module and the versions declared in ``tools_config.yml``.
+"""
+
 import yaml
 import os
 import shutil

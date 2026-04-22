@@ -1,3 +1,8 @@
+"""
+Utilities for discovering datasets, validating their expected directory and
+file layout, resolving tool inputs, and preparing standard results/log paths.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

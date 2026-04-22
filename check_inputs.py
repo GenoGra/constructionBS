@@ -1,4 +1,8 @@
-# Detailed report tool
+"""
+Command-line helper that inspects datasets under ``input_data`` and prints
+human-readable reports about structure, metadata, valid files, and tool
+readiness.
+"""
 
 from __future__ import annotations
 
