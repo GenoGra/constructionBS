@@ -1,6 +1,6 @@
 FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y     git     make     g++     zlib1g-dev
+RUN apt-get update && apt-get install -y     git     make     g++     zlib1g-dev     time
 
 RUN git clone https://github.com/lh3/minigraph.git
 WORKDIR /minigraph
