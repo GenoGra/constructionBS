@@ -7,7 +7,7 @@ readiness.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 import argparse
 
 from dataset_utils import find_datasets, inspect_dataset
@@ -81,9 +81,16 @@ def format_resolved_inputs_line(tool_name: str, info: dict[str, Any]) -> str:
     return f"- {tool_name}: unresolved ({reason})"
 
 
+def format_workflow_line(name: str, _: Any = None) -> str:
+    """
+    Format a workflow entry for display.
+    """
+    return f"- {name}: true"
+
+
 def _print_section(
     title: str,
-    items: dict[str, Any],
+    items: dict[str, Any] | Iterable[Any],
     format_fn: Callable[[str, Any], str],
     empty_msg: str = "- none",
 ) -> None:
@@ -91,18 +98,39 @@ def _print_section(
     Print a report section with a title, formatted items, and empty message.
     """
     print(f"{title}:")
-    if items:
-        for key, value in items.items():
-            print(format_fn(key, value))
+    if isinstance(items, dict):
+        if items:
+            for key, value in items.items():
+                print(format_fn(key, value))
+        else:
+            print(empty_msg)
+    elif items:
+        for item in items:
+            print(format_fn(str(item), True))
     else:
         print(empty_msg)
     print()
+
+
+def _normalize_supported_workflows(value: Any) -> dict[str, bool] | list[str]:
+    """
+    Normalize supported_workflows metadata into a display-friendly shape.
+    """
+    if isinstance(value, dict):
+        return value
+
+    if isinstance(value, list):
+        return [str(item) for item in value]
+
+    return {}
 
 
 def print_dataset_report(report: dict[str, Any]) -> None:
     """
     Print a formatted dataset inspection report.
     """
+    supported_workflows = _normalize_supported_workflows(report["supported_workflows"])
+
     print(f"=== Dataset check: {report['dataset_name']} ===")
     print(f"Path: {report['dataset_path']}")
     print(f"Status: {report['status']}")
@@ -132,8 +160,8 @@ def print_dataset_report(report: dict[str, Any]) -> None:
     # Supported workflows
     _print_section(
         "Supported workflows",
-        report["supported_workflows"],
-        lambda k, v: f"- {k}: {format_bool(bool(v))}",
+        supported_workflows,
+        format_workflow_line,
         "- none declared",
     )
 

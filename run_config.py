@@ -3,22 +3,24 @@ Central configuration describing which dataset directories and input file types
 each tool requires, plus how tool inputs should be resolved from a dataset.
 """
 
+ASSEMBLIES_META_REQUIRED_DIRS = ["ASSEMBLIES", "META"]
+ASSEMBLIES_INPUT_SPEC = {
+    "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
+}
+
+ASSEMBLIES_ONLY_TOOLS = (
+    "Cactus",
+    "Minigraph",
+    "MinigraphCactus",
+    "PGGB",
+)
+
 TOOL_REQUIREMENTS = {
-    "Cactus": {
-        "required_dirs": ["ASSEMBLIES", "META"],
-    },
-    "Minigraph": {
-        "required_dirs": ["ASSEMBLIES", "META"],
-    },
-    "MinigraphCactus": {
-        "required_dirs": ["ASSEMBLIES", "META"],
-    },
-    "PGGB": {
-        "required_dirs": ["ASSEMBLIES", "META"],
-    },
-    "ProgressiveCactus": {
-        "required_dirs": ["ASSEMBLIES", "TREE", "META"],
-    },
+    tool_name: {"required_dirs": ASSEMBLIES_META_REQUIRED_DIRS.copy()}
+    for tool_name in ASSEMBLIES_ONLY_TOOLS
+}
+TOOL_REQUIREMENTS["ProgressiveCactus"] = {
+    "required_dirs": ["ASSEMBLIES", "TREE", "META"],
 }
 
 EXPECTED_FILE_TYPES = {
@@ -29,20 +31,10 @@ EXPECTED_FILE_TYPES = {
 }
 
 TOOL_INPUT_SPECS = {
-    "Cactus": {
-        "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
-    },
-    "Minigraph": {
-        "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
-    },
-    "MinigraphCactus": {
-        "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
-    },
-    "PGGB": {
-        "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
-    },
-    "ProgressiveCactus": {
-        "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
-        "tree": {"source": "TREE", "mode": "single"},
-    },
+    tool_name: ASSEMBLIES_INPUT_SPEC.copy()
+    for tool_name in ASSEMBLIES_ONLY_TOOLS
+}
+TOOL_INPUT_SPECS["ProgressiveCactus"] = {
+    **ASSEMBLIES_INPUT_SPEC,
+    "tree": {"source": "TREE", "mode": "single"},
 }

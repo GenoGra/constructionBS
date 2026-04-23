@@ -3,141 +3,95 @@ Generate the project ``docker-compose.yml`` from ``tools_config.yml`` and
 prepare per-dataset results folders after checking dataset readiness.
 """
 
-import yaml
 from pathlib import Path
-from dataset_utils import find_datasets, inspect_dataset, create_results_structure
 
-DOCKER_COMPOSE_HEADER = '''\
-services:
-'''
+import yaml
 
-SERVICE_TEMPLATE = {
-    'Cactus': '''  
-  cactus:
-    stdin_open: true
-    tty: true
-    build:
-      context: ./
-      dockerfile: Dockerfiles/Cactus/Dockerfile
-    volumes:
-      - type: bind
-        source: ./results
-        target: /results
-      - type: bind
-        source: ./input_data
-        target: /input_data
-    command:
-      - /bin/bash
-      - -c
-      - |
-        cactus-pangenome --help
-''',
+from dataset_utils import create_results_structure, find_datasets, inspect_dataset
 
-    'Minigraph': '''
-  minigraph:
-    stdin_open: true
-    tty: true
-    build:
-      context: ./
-      dockerfile: Dockerfiles/Minigraph/Dockerfile
-    volumes:
-      - type: bind
-        source: ./results
-        target: /results
-      - type: bind
-        source: ./input_data
-        target: /input_data
-    command:
-      - /bin/bash
-      - -c
-      - |
-        cd /minigraph && ./minigraph
-''',
 
-    'MinigraphCactus': '''\
-  minigraphcactus:
-    stdin_open: true
-    tty: true
-    build:
-      context: ./
-      dockerfile: Dockerfiles/MinigraphCactus/Dockerfile
-    volumes:
-      - type: bind
-        source: ./results
-        target: /results
-      - type: bind
-        source: ./input_data
-        target: /input_data
-    command:
-      - /bin/bash
-      - -c
-      - |
-        cactus-pangenome --help
-''',
+COMMON_VOLUMES = [
+    {"type": "bind", "source": "./results", "target": "/results"},
+    {"type": "bind", "source": "./input_data", "target": "/input_data"},
+]
 
-    'PGGB': '''\
-  pggb:
-    stdin_open: true
-    tty: true
-    build:
-      context: ./
-      dockerfile: Dockerfiles/PGGB/Dockerfile
-    volumes:
-      - type: bind
-        source: ./results
-        target: /results
-      - type: bind
-        source: ./input_data
-        target: /input_data
-    command:
-      - /bin/bash
-      - -c
-      - |
-        cd /pggb && ./pggb
-''',
-
-    'ProgressiveCactus': '''\
-  progressivecactus:
-    stdin_open: true
-    tty: true
-    build:
-      context: ./
-      dockerfile: Dockerfiles/ProgressiveCactus/Dockerfile
-    volumes:
-      - type: bind
-        source: ./results
-        target: /results
-      - type: bind
-        source: ./input_data
-        target: /input_data
-    command:
-      - /bin/bash
-      - -c
-      - |
-        cactus --help
-''',
+TOOL_SERVICE_SPECS = {
+    "Cactus": {
+        "service_name": "cactus",
+        "dockerfile": "Dockerfiles/Cactus/Dockerfile",
+        "command": "cactus-pangenome --help",
+    },
+    "Minigraph": {
+        "service_name": "minigraph",
+        "dockerfile": "Dockerfiles/Minigraph/Dockerfile",
+        "command": "cd /minigraph && ./minigraph",
+    },
+    "MinigraphCactus": {
+        "service_name": "minigraphcactus",
+        "dockerfile": "Dockerfiles/MinigraphCactus/Dockerfile",
+        "command": "cactus-pangenome --help",
+    },
+    "PGGB": {
+        "service_name": "pggb",
+        "dockerfile": "Dockerfiles/PGGB/Dockerfile",
+        "command": "cd /pggb && ./pggb",
+    },
+    "ProgressiveCactus": {
+        "service_name": "progressivecactus",
+        "dockerfile": "Dockerfiles/ProgressiveCactus/Dockerfile",
+        "command": "cactus --help",
+    },
 }
 
-def main():
+
+def build_service_definition(tool_name: str) -> tuple[str, dict]:
+    """
+    Build one docker-compose service definition from the tool spec.
+    """
+    spec = TOOL_SERVICE_SPECS.get(tool_name)
+    if spec is None:
+        raise ValueError(f"No service template defined for {tool_name}")
+
+    return spec["service_name"], {
+        "stdin_open": True,
+        "tty": True,
+        "build": {
+            "context": "./",
+            "dockerfile": spec["dockerfile"],
+        },
+        "volumes": [volume.copy() for volume in COMMON_VOLUMES],
+        "command": ["/bin/bash", "-c", spec["command"]],
+    }
+
+
+def build_docker_compose_services(config: dict) -> dict[str, dict]:
+    """
+    Build all docker-compose services for the configured tools.
+    """
+    services: dict[str, dict] = {}
+
+    for tool_name in config:
+        service_name, service_definition = build_service_definition(tool_name)
+        services[service_name] = service_definition
+
+    return services
+
+
+def main() -> None:
     """
     Generate docker-compose.yml from tools configuration and check dataset readiness.
     """
-    with open('tools_config.yml', 'r') as file:
+    with open("tools_config.yml", "r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
 
-    with open('docker-compose.yml', 'w') as file_tmp:
-        file_tmp.write(DOCKER_COMPOSE_HEADER)
-
-        for tool in config:
-            if tool not in SERVICE_TEMPLATE:
-                raise ValueError(f"Nessun service template definito per {tool}")
-            file_tmp.write(SERVICE_TEMPLATE[tool])
+    compose_config = {"services": build_docker_compose_services(config)}
+    with open("docker-compose.yml", "w", encoding="utf-8") as file_tmp:
+        yaml.safe_dump(compose_config, file_tmp, sort_keys=False)
 
     print("\nSuccessfully created docker-compose.yml for help tests.\n")
 
     input_data_path = Path("input_data")
     datasets = find_datasets(input_data_path)
-
     ready_datasets = []
     for dataset_path in datasets:
         report = inspect_dataset(dataset_path)
@@ -147,7 +101,6 @@ def main():
     if not ready_datasets:
         print("\nNo datasets ready for real runs. Generating help-only docker-compose.\n")
 
-    # Create standard results structure for all detected datasets
     for dataset_path in datasets:
         create_results_structure(dataset_path.name, list(config.keys()))
 
@@ -155,5 +108,5 @@ def main():
         print("Results structure ensured for detected datasets.\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

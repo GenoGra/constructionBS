@@ -76,7 +76,7 @@ class DatasetReport(TypedDict):
     status: str
     description: str | None
     expected_inputs: Dict[str, Any]
-    supported_workflows: Dict[str, Any]
+    supported_workflows: list[str] | Dict[str, Any]
     file_checks: dict[str, DirectoryFileCheck]
     ready_for_real_runs: bool
     tool_runnability: dict[str, ToolRunnability]
@@ -390,28 +390,39 @@ def _resolve_input_spec(
     input_key: str,
     spec: dict[str, Any],
     file_checks: dict[str, DirectoryFileCheck],
-) -> tuple[bool, Any | None]:
+) -> tuple[bool, Any | None, str | None]:
     """
     Resolve a single input specification.
-    Return (resolved, value) where:
-      - resolved=False, value=None if input could not be resolved
-      - resolved=True, value=<file or files> if input was resolved
+
+    Returns:
+      (resolved, value, error_reason)
+
+    Where:
+      - resolved=False, value=None, error_reason=<reason> if input could not be resolved
+      - resolved=True, value=<file or files>, error_reason=None if input was resolved
     """
     source_dir = spec["source"]
     mode = spec["mode"]
 
     dir_info = file_checks.get(source_dir)
     if dir_info is None:
-        return (False, None)
+        return (False, None, "missing source directory information")
 
     matching_files = dir_info.get("matching_files", [])
 
     if mode == "many":
-        return (bool(matching_files), matching_files if matching_files else None)
-    if mode == "single":
-        return (bool(matching_files), matching_files[0] if matching_files else None)
+        if matching_files:
+            return (True, matching_files, None)
+        return (False, None, "no valid files")
 
-    return (False, None)
+    if mode == "single":
+        if len(matching_files) == 1:
+            return (True, matching_files[0], None)
+        if len(matching_files) == 0:
+            return (False, None, "no valid files")
+        return (False, None, "ambiguous: multiple valid files found")
+
+    return (False, None, f"invalid mode '{mode}'")
 
 
 def get_tool_inputs(tool_name: str, dataset_report: DatasetReport) -> ToolInputs:
@@ -437,7 +448,7 @@ def get_tool_inputs(tool_name: str, dataset_report: DatasetReport) -> ToolInputs
     file_checks = dataset_report.get("file_checks", {})
 
     for input_key, spec in specs.items():
-        resolved, value = _resolve_input_spec(input_key, spec, file_checks)
+        resolved, value, error_reason = _resolve_input_spec(input_key, spec, file_checks)
 
         if resolved:
             result["inputs"][input_key] = value
@@ -445,6 +456,8 @@ def get_tool_inputs(tool_name: str, dataset_report: DatasetReport) -> ToolInputs
             mode = spec.get("mode")
             if mode not in VALID_INPUT_MODES:
                 result["missing"].append(f"{input_key} (invalid mode '{mode}')")
+            elif error_reason is not None:
+                result["missing"].append(f"{input_key} ({error_reason})")
             else:
                 result["missing"].append(input_key)
 
@@ -505,6 +518,16 @@ def get_tool_timing_log_path(dataset_name: str, tool_name: str) -> Path:
     return get_tool_logs_path(dataset_name, tool_name) / "timing.log"
 
 
+def get_tool_log_paths(dataset_name: str, tool_name: str) -> tuple[Path, Path]:
+    """
+    Return the standard execution and timing log paths for a tool run.
+    """
+    return (
+        get_tool_execution_log_path(dataset_name, tool_name),
+        get_tool_timing_log_path(dataset_name, tool_name),
+    )
+
+
 def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[str, dict[str, str]]:
     """
     Create the standard results structure for a dataset and a list of tools.
@@ -532,8 +555,7 @@ def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[s
         outputs_path.mkdir(parents=True, exist_ok=True)
         logs_path.mkdir(parents=True, exist_ok=True)
 
-        execution_log_path = get_tool_execution_log_path(dataset_name, tool_name)
-        timing_log_path = get_tool_timing_log_path(dataset_name, tool_name)
+        execution_log_path, timing_log_path = get_tool_log_paths(dataset_name, tool_name)
 
         execution_log_path.touch(exist_ok=True)
         timing_log_path.touch(exist_ok=True)
@@ -559,10 +581,14 @@ def build_wrapped_command(
     Standard wrapper:
         /usr/bin/time -v -o <timing_log> bash -c "<real_command>" > <execution_log> 2>&1
 
+    Notes:
+    - the caller is responsible for ensuring the results/log directories exist
+    - this helper is intentionally shell-based because docker-compose commands
+      are currently emitted as shell command strings
+
     Returns the wrapped shell command as a string.
     """
-    execution_log = get_tool_execution_log_path(dataset_name, tool_name)
-    timing_log = get_tool_timing_log_path(dataset_name, tool_name)
+    execution_log, timing_log = get_tool_log_paths(dataset_name, tool_name)
 
     quoted_real_command = shlex.quote(real_command)
     quoted_execution_log = shlex.quote(str(execution_log))
@@ -583,11 +609,14 @@ def get_wrapped_command_preview(
     """
     Return a structured preview of the wrapped command and log destinations.
     """
+    execution_log, timing_log = get_tool_log_paths(dataset_name, tool_name)
+
     return {
         "tool": tool_name,
         "dataset": dataset_name,
         "real_command": real_command,
         "wrapped_command": build_wrapped_command(dataset_name, tool_name, real_command),
-        "execution_log": str(get_tool_execution_log_path(dataset_name, tool_name)),
-        "timing_log": str(get_tool_timing_log_path(dataset_name, tool_name)),
+        "execution_log": str(execution_log),
+        "timing_log": str(timing_log),
     }
+    
