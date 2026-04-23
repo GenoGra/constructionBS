@@ -86,7 +86,11 @@ Place your datasets in the `input_data/` directory following the required struct
 Use the `check_inputs.py` script to validate your datasets:
 
 ```bash
-python check_inputs.py input_data/dataset_name
+python check_inputs.py --dataset dataset_name
+# or inspect everything under the default input_data/ directory
+python check_inputs.py
+# or point to a custom datasets root
+python check_inputs.py --input-data /path/to/input_data --dataset dataset_name
 ```
 
 This will provide a detailed report on:
