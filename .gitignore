@@ -214,3 +214,4 @@ input_data/**/READS/**
 input_data/**/TREE/**
 !input_data/**/META/
 !input_data/**/META/**
+input_data/**/META/dataset_info.yml
