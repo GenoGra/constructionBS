@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project data inputs/outputs
+results/
+input_data/**/ASSEMBLIES/**
+input_data/**/GRAPH/**
+input_data/**/READS/**
+input_data/**/TREE/**
+!input_data/**/META/
+!input_data/**/META/**
