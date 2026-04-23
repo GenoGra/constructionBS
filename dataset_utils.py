@@ -17,6 +17,7 @@ from run_config import TOOL_REQUIREMENTS, EXPECTED_FILE_TYPES, TOOL_INPUT_SPECS
 STANDARD_DIRS = ["ASSEMBLIES", "GRAPH", "META", "READS", "TREE"]
 METADATA_RELATIVE_PATH = Path("META") / "dataset_info.yml"
 VALID_INPUT_MODES = {"many", "single"}
+MINIGRAPH_OUTPUT_FILENAME = "minigraph_graph.gfa"
 
 INPUT_TO_DIR_MAPPING = {
     "assemblies": "ASSEMBLIES",
@@ -338,6 +339,12 @@ def get_tool_runnability(tool_name: str, dataset_report: DatasetReport) -> ToolR
         result["reason"] = "missing required inputs"
         return result
 
+    tool_inputs = get_tool_inputs(tool_name, dataset_report)
+    if not tool_inputs["resolved"]:
+        result["missing_requirements"].extend(tool_inputs["missing"])
+        result["reason"] = tool_inputs["reason"] or "required tool inputs could not be resolved"
+        return result
+
     result["runnable"] = True
     return result
 
@@ -403,6 +410,7 @@ def _resolve_input_spec(
     """
     source_dir = spec["source"]
     mode = spec["mode"]
+    min_count = spec.get("min_count")
 
     dir_info = file_checks.get(source_dir)
     if dir_info is None:
@@ -411,6 +419,12 @@ def _resolve_input_spec(
     matching_files = dir_info.get("matching_files", [])
 
     if mode == "many":
+        if min_count is not None and len(matching_files) < min_count:
+            return (
+                False,
+                None,
+                f"expected at least {min_count} valid files, found {len(matching_files)}",
+            )
         if matching_files:
             return (True, matching_files, None)
         return (False, None, "no valid files")
@@ -518,6 +532,13 @@ def get_tool_timing_log_path(dataset_name: str, tool_name: str) -> Path:
     return get_tool_logs_path(dataset_name, tool_name) / "timing.log"
 
 
+def get_minigraph_graph_output_path(dataset_name: str) -> Path:
+    """
+    Return the output graph path for a Minigraph construction run.
+    """
+    return get_tool_outputs_path(dataset_name, "Minigraph") / MINIGRAPH_OUTPUT_FILENAME
+
+
 def get_tool_log_paths(dataset_name: str, tool_name: str) -> tuple[Path, Path]:
     """
     Return the standard execution and timing log paths for a tool run.
@@ -618,5 +639,47 @@ def get_wrapped_command_preview(
         "wrapped_command": build_wrapped_command(dataset_name, tool_name, real_command),
         "execution_log": str(execution_log),
         "timing_log": str(timing_log),
+    }
+
+
+def build_minigraph_construction_command(dataset_report: DatasetReport) -> str:
+    """
+    Build the real Minigraph graph-construction command for a dataset.
+
+    Minigraph expects one reference FASTA followed by one or more assembly FASTA
+    files and emits an rGFA/GFA graph to stdout.
+    """
+    dataset_name = dataset_report["dataset_name"]
+    tool_inputs = get_tool_inputs("Minigraph", dataset_report)
+    if not tool_inputs["resolved"]:
+        reason = tool_inputs["reason"] or "unable to resolve Minigraph inputs"
+        raise ValueError(reason)
+
+    assemblies = tool_inputs["inputs"]["assemblies"]
+    if not isinstance(assemblies, list) or len(assemblies) < 2:
+        raise ValueError("Minigraph graph construction requires at least two assembly FASTA files")
+
+    reference = assemblies[0]
+    sample_assemblies = assemblies[1:]
+    quoted_inputs = " ".join(shlex.quote(path) for path in [reference, *sample_assemblies])
+    quoted_output = shlex.quote(str(get_minigraph_graph_output_path(dataset_name)))
+
+    return (
+        "cd /minigraph && "
+        f"./minigraph -cxggs {quoted_inputs} > {quoted_output}"
+    )
+
+
+def get_minigraph_construction_command_preview(dataset_report: DatasetReport) -> dict[str, str]:
+    """
+    Return a structured preview for the Minigraph graph-construction command.
+    """
+    dataset_name = dataset_report["dataset_name"]
+    real_command = build_minigraph_construction_command(dataset_report)
+    wrapped_preview = get_wrapped_command_preview(dataset_name, "Minigraph", real_command)
+
+    return {
+        **wrapped_preview,
+        "output_graph": str(get_minigraph_graph_output_path(dataset_name)),
     }
     

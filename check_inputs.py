@@ -85,7 +85,7 @@ def format_workflow_line(name: str, _: Any = None) -> str:
     """
     Format a workflow entry for display.
     """
-    return f"- {name}: true"
+    return f"- {name}: {format_bool(bool(_))}"
 
 
 def _print_section(

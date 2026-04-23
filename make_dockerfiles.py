@@ -27,7 +27,8 @@ RUN apt-get update && apt-get install -y \
     git \
     make \
     g++ \
-    zlib1g-dev
+    zlib1g-dev \
+    time
 
 RUN git clone https://github.com/lh3/minigraph.git
 WORKDIR /minigraph
@@ -61,7 +62,8 @@ RUN apt-get update && apt-get install -y \
     wget \
     python3 \
     python3-pip \
-    bash
+    bash \
+    time
 
 RUN git clone https://github.com/pangenome/pggb.git
 WORKDIR /pggb
