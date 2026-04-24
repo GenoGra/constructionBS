@@ -99,6 +99,18 @@ This will provide a detailed report on:
 - Tool runnability status
 - Input resolution status
 
+For `Minigraph` graph construction, the dataset should provide at least two FASTA
+files in `ASSEMBLIES/`: the first is used as the reference backbone and the
+others are incrementally added to the graph. The expected output is a graph
+file (`.gfa`/rGFA), not a mapping file (`.gaf`).
+
+Validated example datasets currently used in this repository are:
+- `input_data/MHC_TEST`
+- `input_data/C4_TEST`
+
+Both contain only assembly FASTA files in `ASSEMBLIES/` and are suitable for
+running `Minigraph` as separate experiments.
+
 ### 3. Generate Dockerfiles
 
 Generate Dockerfiles for all configured tools:
@@ -129,6 +141,20 @@ docker-compose run cactus
 docker-compose run minigraph
 # etc.
 ```
+
+For real `Minigraph` graph construction runs, use the dataset-specific command
+inside the container and wrap it with `/usr/bin/time` so that both
+`execution.log` and `timing.log` are populated. Example for `MHC_TEST`:
+
+```bash
+mkdir -p results/MHC_TEST/Minigraph/outputs results/MHC_TEST/Minigraph/logs
+docker compose run --rm minigraph bash -lc "/usr/bin/time -v -o /results/MHC_TEST/Minigraph/logs/timing.log bash -lc 'cd /minigraph && ./minigraph -cxggs /input_data/MHC_TEST/ASSEMBLIES/MHC-*.fa > /results/MHC_TEST/Minigraph/outputs/minigraph_graph.gfa' > /results/MHC_TEST/Minigraph/logs/execution.log 2>&1"
+```
+
+This produces:
+- `results/MHC_TEST/Minigraph/outputs/minigraph_graph.gfa`
+- `results/MHC_TEST/Minigraph/logs/execution.log`
+- `results/MHC_TEST/Minigraph/logs/timing.log`
 
 ## Configuration
 
