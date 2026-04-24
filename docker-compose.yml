@@ -15,7 +15,8 @@ services:
     command:
     - /bin/bash
     - -c
-    - cactus-pangenome --help
+    - mkdir -p /results && cactus-pangenome --help > /results/cactus_pangenome_help.txt
+      2>&1
   minigraph:
     stdin_open: true
     tty: true
@@ -32,7 +33,8 @@ services:
     command:
     - /bin/bash
     - -c
-    - cd /minigraph && ./minigraph
+    - mkdir -p /results && cd /minigraph && ./minigraph > /results/minigraph_help.txt
+      2>&1 || true
   minigraphcactus:
     stdin_open: true
     tty: true
@@ -49,7 +51,8 @@ services:
     command:
     - /bin/bash
     - -c
-    - cactus-pangenome --help
+    - mkdir -p /results && cactus-pangenome --help > /results/minigraphcactus_help.txt
+      2>&1
   pggb:
     stdin_open: true
     tty: true
@@ -66,7 +69,8 @@ services:
     command:
     - /bin/bash
     - -c
-    - cd /pggb && ./pggb
+    - mkdir -p /results && cd /pggb && ./pggb --help > /results/pggb_help.txt 2>&1
+      || true
   progressivecactus:
     stdin_open: true
     tty: true
@@ -83,4 +87,4 @@ services:
     command:
     - /bin/bash
     - -c
-    - cactus --help
+    - mkdir -p /results && cactus --help > /results/progressivecactus_help.txt 2>&1

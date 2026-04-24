@@ -19,27 +19,27 @@ TOOL_SERVICE_SPECS = {
     "Cactus": {
         "service_name": "cactus",
         "dockerfile": "Dockerfiles/Cactus/Dockerfile",
-        "command": "cactus-pangenome --help",
+        "command": "mkdir -p /results && cactus-pangenome --help > /results/cactus_pangenome_help.txt 2>&1",
     },
     "Minigraph": {
         "service_name": "minigraph",
         "dockerfile": "Dockerfiles/Minigraph/Dockerfile",
-        "command": "cd /minigraph && ./minigraph",
+        "command": "mkdir -p /results && cd /minigraph && ./minigraph > /results/minigraph_help.txt 2>&1 || true",
     },
     "MinigraphCactus": {
         "service_name": "minigraphcactus",
         "dockerfile": "Dockerfiles/MinigraphCactus/Dockerfile",
-        "command": "cactus-pangenome --help",
+        "command": "mkdir -p /results && cactus-pangenome --help > /results/minigraphcactus_help.txt 2>&1",
     },
     "PGGB": {
         "service_name": "pggb",
         "dockerfile": "Dockerfiles/PGGB/Dockerfile",
-        "command": "cd /pggb && ./pggb",
+        "command": "mkdir -p /results && cd /pggb && ./pggb --help > /results/pggb_help.txt 2>&1 || true",
     },
     "ProgressiveCactus": {
         "service_name": "progressivecactus",
         "dockerfile": "Dockerfiles/ProgressiveCactus/Dockerfile",
-        "command": "cactus --help",
+        "command": "mkdir -p /results && cactus --help > /results/progressivecactus_help.txt 2>&1",
     },
 }
 
