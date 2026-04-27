@@ -111,6 +111,9 @@ Validated example datasets currently used in this repository are:
 Both contain only assembly FASTA files in `ASSEMBLIES/` and are suitable for
 running `Minigraph` as separate experiments.
 
+For `PGGB`, the same datasets are used as separate experiments, but the input
+must first be concatenated into a single FASTA per dataset.
+
 ### 3. Generate Dockerfiles
 
 Generate Dockerfiles for all configured tools:
@@ -156,6 +159,46 @@ This produces:
 - `results/MHC_TEST/Minigraph/logs/execution.log`
 - `results/MHC_TEST/Minigraph/logs/timing.log`
 
+For `PGGB`, use the official container image and prepare one aggregated FASTA
+per dataset. The input FASTA must also be indexed with `samtools faidx`, and if
+the sequence names do not respect PanSN naming you must provide the haplotype
+count explicitly with `-n`.
+
+Example for `C4_TEST`:
+
+```bash
+cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/ASSEMBLIES/c4_total.fa
+docker compose run --rm pggb bash -lc 'samtools faidx /input_data/C4_TEST/ASSEMBLIES/c4_total.fa'
+mkdir -p results/C4_TEST/PGGB/outputs results/C4_TEST/PGGB/logs
+/usr/bin/time -p -o results/C4_TEST/PGGB/logs/timing.log docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/ASSEMBLIES/c4_total.fa -n 96 -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
+sudo chown -R $USER:$USER results/C4_TEST/PGGB
+python utils/organize_pggb_outputs.py results/C4_TEST/PGGB/outputs
+```
+
+This produces:
+- `results/C4_TEST/PGGB/outputs/pggb_graph.gfa`
+- `results/C4_TEST/PGGB/outputs/artifacts/`
+- `results/C4_TEST/PGGB/logs/execution.log`
+- `results/C4_TEST/PGGB/logs/timing.log`
+
+Notes from the validated runs:
+- `PGGB` writes many intermediate and auxiliary files in its output directory
+- the final graph to keep is `*.smooth.final.gfa`
+- `utils/organize_pggb_outputs.py` copies that file to `pggb_graph.gfa` and moves the remaining artifacts into `outputs/artifacts/`
+- the run can still produce a final graph even if `multiqc` is missing from the image; in that case the warning remains in `execution.log`
+
+To keep a stable layout after a run, you can normalize the directory with:
+
+```bash
+python utils/organize_pggb_outputs.py results/C4_TEST/PGGB/outputs
+```
+
+This keeps:
+- `results/C4_TEST/PGGB/outputs/pggb_graph.gfa`
+
+and moves the original PGGB-generated files into:
+- `results/C4_TEST/PGGB/outputs/artifacts/`
+
 ## Configuration
 
 ### tools_config.yml
@@ -194,6 +237,7 @@ Tool requirements and input mappings are defined in `run_config.py`:
 - `make_dockerfiles.py`: Dockerfile generation script
 - `make_dockercompose.py`: Docker Compose configuration generator
 - `run_config.py`: Configuration constants
+- `utils/organize_pggb_outputs.py`: Normalize PGGB outputs into one canonical graph plus artifacts
 
 ## Results Structure
 
