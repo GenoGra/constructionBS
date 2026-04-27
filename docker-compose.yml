@@ -69,8 +69,7 @@ services:
     command:
     - /bin/bash
     - -c
-    - mkdir -p /results && cd /pggb && ./pggb --help > /results/pggb_help.txt 2>&1
-      || true
+    - mkdir -p /results && pggb --help > /results/pggb_help.txt 2>&1 || true
   progressivecactus:
     stdin_open: true
     tty: true

@@ -34,7 +34,7 @@ TOOL_SERVICE_SPECS = {
     "PGGB": {
         "service_name": "pggb",
         "dockerfile": "Dockerfiles/PGGB/Dockerfile",
-        "command": "mkdir -p /results && cd /pggb && ./pggb --help > /results/pggb_help.txt 2>&1 || true",
+        "command": "mkdir -p /results && pggb --help > /results/pggb_help.txt 2>&1 || true",
     },
     "ProgressiveCactus": {
         "service_name": "progressivecactus",
