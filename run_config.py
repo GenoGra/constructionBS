@@ -34,6 +34,9 @@ TOOL_INPUT_SPECS = {
     tool_name: ASSEMBLIES_INPUT_SPEC.copy()
     for tool_name in ASSEMBLIES_ONLY_TOOLS
 }
+TOOL_INPUT_SPECS["Cactus"] = {
+    "assemblies": {"source": "ASSEMBLIES", "mode": "many", "min_count": 2},
+}
 TOOL_INPUT_SPECS["Minigraph"] = {
     "assemblies": {"source": "ASSEMBLIES", "mode": "many", "min_count": 2},
 }

@@ -15,8 +15,7 @@ services:
     command:
     - /bin/bash
     - -c
-    - mkdir -p /results && cactus-pangenome --help > /results/cactus_pangenome_help.txt
-      2>&1
+    - mkdir -p /results && cactus --help > /results/cactus_help.txt 2>&1
   minigraph:
     stdin_open: true
     tty: true

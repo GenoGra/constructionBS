@@ -19,7 +19,7 @@ TOOL_SERVICE_SPECS = {
     "Cactus": {
         "service_name": "cactus",
         "dockerfile": "Dockerfiles/Cactus/Dockerfile",
-        "command": "mkdir -p /results && cactus-pangenome --help > /results/cactus_pangenome_help.txt 2>&1",
+        "command": "mkdir -p /results && cactus --help > /results/cactus_help.txt 2>&1",
     },
     "Minigraph": {
         "service_name": "minigraph",
