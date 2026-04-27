@@ -21,7 +21,7 @@ This repository contains Python scripts and configuration files to automate the 
 
 ## Supported Tools
 
-- **Cactus**: Progressive alignment and graph construction
+- **Cactus**: Progressive alignment workflow (`HAL`-first, distinct from `cactus-pangenome`)
 - **Minigraph**: Fast graph construction from assemblies
 - **MinigraphCactus**: Hybrid approach combining Minigraph and Cactus
 - **PGGB**: Pangenome Graph Builder
@@ -228,6 +228,27 @@ Notes from the validated runs:
 - `utils/organize_outputs.py MinigraphCactus ...` keeps both a canonical compressed graph and an uncompressed `GFA` copy for inspection
 - some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
 
+For `Cactus` (distinct from `MinigraphCactus`), use the `cactus` entrypoint
+instead of `cactus-pangenome`. Generate a dedicated Cactus seqfile (with a
+tree line) using:
+
+```bash
+python utils/make_cactus_seqfile.py C4_TEST
+```
+
+This writes `results/C4_TEST/Cactus/outputs/c4_test_seqfile.txt`, which can be
+used with `cactus jobStore seqFile outputHal`.
+
+After a Cactus run, normalize outputs with:
+
+```bash
+python utils/organize_outputs.py Cactus results/C4_TEST/Cactus/outputs
+```
+
+Canonical layout:
+- `results/C4_TEST/Cactus/outputs/cactus_alignment.hal`
+- `results/C4_TEST/Cactus/outputs/artifacts/`
+
 ## Configuration
 
 ### tools_config.yml
@@ -267,6 +288,7 @@ Tool requirements and input mappings are defined in `run_config.py`:
 - `make_dockercompose.py`: Docker Compose configuration generator
 - `run_config.py`: Configuration constants
 - `utils/clean_outputs.sh`: Reset one dataset/tool results directory before reruns
+- `utils/make_cactus_seqfile.py`: Generate Cactus seqfiles (tree + sample/path mappings) from assembly datasets
 - `utils/make_minigraphcactus_seqfile.py`: Generate seqfiles for Minigraph-Cactus from assembly datasets
 - `utils/organize_outputs.py`: Normalize supported tool outputs into canonical graph files plus artifacts
 
