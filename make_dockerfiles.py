@@ -53,7 +53,7 @@ CMD ["/bin/bash"]
     ''',
 
     'pggb': '''\
-FROM ghcr.io/pangenome/pggb:latest
+FROM ghcr.io/pangenome/pggb:{}
 
 RUN mkdir -p /results /input_data
 
