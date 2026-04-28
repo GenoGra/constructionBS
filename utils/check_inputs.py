@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 import argparse
 
-from dataset_utils import find_datasets, inspect_dataset
+try:
+    from utils.dataset_utils import find_datasets, inspect_dataset
+except ModuleNotFoundError:
+    # Allow direct execution via `python utils/check_inputs.py`.
+    from dataset_utils import find_datasets, inspect_dataset
 
 
 def format_bool(value: bool) -> str:

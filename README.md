@@ -83,14 +83,14 @@ Place your datasets in the `input_data/` directory following the required struct
 
 ### 2. Check Dataset Readiness
 
-Use the `check_inputs.py` script to validate your datasets:
+Use the `utils/check_inputs.py` script to validate your datasets:
 
 ```bash
-python check_inputs.py --dataset dataset_name
+python utils/check_inputs.py --dataset dataset_name
 # or inspect everything under the default input_data/ directory
-python check_inputs.py
+python utils/check_inputs.py
 # or point to a custom datasets root
-python check_inputs.py --input-data /path/to/input_data --dataset dataset_name
+python utils/check_inputs.py --input-data /path/to/input_data --dataset dataset_name
 ```
 
 This will provide a detailed report on:
@@ -411,8 +411,8 @@ Tool requirements and input mappings are defined in `run_config.py`:
 
 ## Scripts
 
-- `check_inputs.py`: Dataset validation and inspection tool
-- `dataset_utils.py`: Utility functions for dataset handling
+- `utils/check_inputs.py`: Dataset validation and inspection tool
+- `utils/dataset_utils.py`: Utility functions for dataset handling
 - `make_dockerfiles.py`: Dockerfile generation script
 - `make_dockercompose.py`: Docker Compose configuration generator
 - `run_config.py`: Configuration constants

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from dataset_utils import create_results_structure, find_datasets, inspect_dataset
+from utils.dataset_utils import create_results_structure, find_datasets, inspect_dataset
 
 
 COMMON_VOLUMES = [
