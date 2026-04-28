@@ -8,6 +8,7 @@ Supported tools:
   - Cactus
   - PGGB
   - MinigraphCactus
+  - ProgressiveCactus
 """
 
 from __future__ import annotations
@@ -26,34 +27,83 @@ ARTIFACTS_DIRNAME = "artifacts"
 class ToolOutputSpec:
     tool_name: str
     final_output_pattern: str
-    canonical_output_name: str
+    canonical_uncompressed_suffix: str
     exclude_suffixes: tuple[str, ...] = ()
     compressed: bool = False
-    canonical_output_gz_name: str | None = None
+    canonical_compressed_suffix: str | None = None
 
 
 TOOL_SPECS = {
     "Cactus": ToolOutputSpec(
         tool_name="Cactus",
         final_output_pattern="*.hal",
-        canonical_output_name="cactus_alignment.hal",
+        canonical_uncompressed_suffix=".hal",
         compressed=False,
     ),
     "PGGB": ToolOutputSpec(
         tool_name="PGGB",
         final_output_pattern="*.smooth.final.gfa",
-        canonical_output_name="pggb_graph.gfa",
+        canonical_uncompressed_suffix=".gfa",
         compressed=False,
     ),
     "MinigraphCactus": ToolOutputSpec(
         tool_name="MinigraphCactus",
         final_output_pattern="*.gfa.gz",
-        canonical_output_name="minigraphcactus_graph.gfa",
-        canonical_output_gz_name="minigraphcactus_graph.gfa.gz",
+        canonical_uncompressed_suffix=".gfa",
+        canonical_compressed_suffix=".gfa.gz",
         exclude_suffixes=(".sv.gfa.gz",),
         compressed=True,
     ),
+    "ProgressiveCactus": ToolOutputSpec(
+        tool_name="ProgressiveCactus",
+        final_output_pattern="*.hal",
+        canonical_uncompressed_suffix=".hal",
+        compressed=False,
+    ),
 }
+
+
+def infer_dataset_name(outputs_dir: Path) -> str:
+    """
+    Infer the dataset name from results/<dataset>/<tool>/outputs.
+    """
+    try:
+        dataset_name = outputs_dir.resolve().parents[1].name
+    except IndexError as error:
+        raise RuntimeError(
+            f"unable to infer dataset name from output directory: {outputs_dir}"
+        ) from error
+
+    if not dataset_name:
+        raise RuntimeError(f"empty dataset name inferred from output directory: {outputs_dir}")
+
+    return dataset_name
+
+
+def infer_dataset_short(dataset_name: str) -> str:
+    """
+    Convert one dataset name into its canonical short token.
+    """
+    if dataset_name.endswith("_TEST"):
+        return dataset_name[: -len("_TEST")]
+    return dataset_name
+
+
+def build_canonical_names(
+    spec: ToolOutputSpec,
+    dataset_short: str,
+) -> tuple[str, str | None]:
+    """
+    Build canonical output filenames for one tool and dataset token.
+    """
+    base_name = f"{spec.tool_name.lower()}_{dataset_short}"
+    canonical_output_name = f"{base_name}{spec.canonical_uncompressed_suffix}"
+
+    canonical_output_gz_name = None
+    if spec.canonical_compressed_suffix is not None:
+        canonical_output_gz_name = f"{base_name}{spec.canonical_compressed_suffix}"
+
+    return canonical_output_name, canonical_output_gz_name
 
 
 def find_final_output(outputs_dir: Path, spec: ToolOutputSpec) -> Path:
@@ -102,31 +152,40 @@ def reset_artifacts_dir(outputs_dir: Path) -> Path:
     return artifacts_dir
 
 
-def remove_existing_canonical_files(outputs_dir: Path, spec: ToolOutputSpec) -> None:
+def remove_existing_canonical_files(
+    outputs_dir: Path,
+    canonical_output_name: str,
+    canonical_output_gz_name: str | None,
+) -> None:
     """
     Remove previously normalized top-level output files.
     """
-    canonical_paths = [outputs_dir / spec.canonical_output_name]
+    canonical_paths = [outputs_dir / canonical_output_name]
 
-    if spec.canonical_output_gz_name is not None:
-        canonical_paths.append(outputs_dir / spec.canonical_output_gz_name)
+    if canonical_output_gz_name is not None:
+        canonical_paths.append(outputs_dir / canonical_output_gz_name)
 
     for path in canonical_paths:
         if path.exists():
             path.unlink()
 
 
-def move_raw_artifacts(outputs_dir: Path, spec: ToolOutputSpec, artifacts_dir: Path) -> None:
+def move_raw_artifacts(
+    outputs_dir: Path,
+    canonical_output_name: str,
+    canonical_output_gz_name: str | None,
+    artifacts_dir: Path,
+) -> None:
     """
     Move original workflow artifacts into artifacts/.
     """
     protected_names = {
         ARTIFACTS_DIRNAME,
-        spec.canonical_output_name,
+        canonical_output_name,
     }
 
-    if spec.canonical_output_gz_name is not None:
-        protected_names.add(spec.canonical_output_gz_name)
+    if canonical_output_gz_name is not None:
+        protected_names.add(canonical_output_gz_name)
 
     for path in list(outputs_dir.iterdir()):
         if path.name in protected_names:
@@ -134,7 +193,11 @@ def move_raw_artifacts(outputs_dir: Path, spec: ToolOutputSpec, artifacts_dir: P
         shutil.move(str(path), artifacts_dir / path.name)
 
 
-def organize_outputs(tool: str, outputs_dir: Path) -> list[Path]:
+def organize_outputs(
+    tool: str,
+    outputs_dir: Path,
+    dataset_short: str | None = None,
+) -> list[Path]:
     """
     Normalize outputs for the selected workflow tool.
     """
@@ -147,22 +210,37 @@ def organize_outputs(tool: str, outputs_dir: Path) -> list[Path]:
         raise FileNotFoundError(f"output directory not found: {outputs_dir}")
 
     spec = TOOL_SPECS[tool]
+    dataset_name = infer_dataset_name(outputs_dir)
+    resolved_dataset_short = dataset_short or infer_dataset_short(dataset_name)
+    canonical_output_name, canonical_output_gz_name = build_canonical_names(
+        spec,
+        resolved_dataset_short,
+    )
 
     final_output = find_final_output(outputs_dir, spec)
     artifacts_dir = reset_artifacts_dir(outputs_dir)
-    remove_existing_canonical_files(outputs_dir, spec)
-    move_raw_artifacts(outputs_dir, spec, artifacts_dir)
+    remove_existing_canonical_files(
+        outputs_dir,
+        canonical_output_name,
+        canonical_output_gz_name,
+    )
+    move_raw_artifacts(
+        outputs_dir,
+        canonical_output_name,
+        canonical_output_gz_name,
+        artifacts_dir,
+    )
 
     moved_final_output = artifacts_dir / final_output.name
     created_paths: list[Path] = []
 
-    canonical_output = outputs_dir / spec.canonical_output_name
+    canonical_output = outputs_dir / canonical_output_name
 
     if spec.compressed:
-        if spec.canonical_output_gz_name is None:
+        if canonical_output_gz_name is None:
             raise RuntimeError(f"{tool} is marked as compressed but has no canonical gz name")
 
-        canonical_output_gz = outputs_dir / spec.canonical_output_gz_name
+        canonical_output_gz = outputs_dir / canonical_output_gz_name
         shutil.copy2(moved_final_output, canonical_output_gz)
         write_decompressed_copy(moved_final_output, canonical_output)
 
@@ -188,12 +266,21 @@ def main() -> None:
         "outputs_dir",
         help="Tool outputs directory to normalize",
     )
+    parser.add_argument(
+        "--dataset-short",
+        default=None,
+        help=(
+            "Override the dataset short token used in canonical output names "
+            "(default: infer from results/<dataset>/... and strip trailing _TEST)"
+        ),
+    )
 
     args = parser.parse_args()
 
     created_paths = organize_outputs(
         tool=args.tool,
         outputs_dir=Path(args.outputs_dir),
+        dataset_short=args.dataset_short,
     )
 
     for path in created_paths:

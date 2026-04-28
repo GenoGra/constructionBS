@@ -162,6 +162,73 @@ This produces:
 - `results/MHC_TEST/Minigraph/logs/execution.log`
 - `results/MHC_TEST/Minigraph/logs/timing.log`
 
+## Common GFA Line Encodings
+
+Some workflows already write path information as `W`-lines or `P`-lines, while
+others need a post-processing step. To avoid repeating the same conversion
+commands in every tool section, use the patterns below after the canonical GFA
+has been produced.
+
+Current canonical encodings in this repository:
+- `PGGB`: canonical graph already uses `P`-lines
+- `Cactus`: exported `GFA` already uses `W`-lines
+- `ProgressiveCactus`: exported `GFA` already uses `W`-lines
+- `MinigraphCactus`: canonical graph already uses `W`-lines
+- `Minigraph`: canonical graph has no `P` or `W` records; only the reference
+  path embedded in the rGFA tags can be materialized from the current files
+
+For tools whose canonical `GFA` already uses `W`-lines (`Cactus`,
+`ProgressiveCactus`, `MinigraphCactus`), keep an explicit `W`-line copy and
+derive the `P`-line version with:
+
+```bash
+cp <canonical_graph.gfa> <graph_with_wlines.gfa>
+docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W <container_canonical_graph.gfa> > <container_graph_with_plines.gfa>"
+sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
+```
+
+For tools whose canonical `GFA` already uses `P`-lines (`PGGB`), keep an
+explicit `P`-line copy and derive the `W`-line version with:
+
+```bash
+cp <canonical_graph.gfa> <graph_with_plines.gfa>
+docker compose run --rm progressivecactus bash -lc "vg convert -g -f <container_canonical_graph.gfa> > <container_graph_with_wlines.gfa>"
+sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
+```
+
+For `Minigraph`, the current files can only reconstruct the rank-0 reference
+path from the rGFA tags, not full per-sample walks. Use:
+
+```bash
+docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f <container_canonical_graph.gfa> > <container_graph_with_wlines.gfa>"
+docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W <container_canonical_graph.gfa> > <container_graph_with_plines.gfa>"
+sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
+```
+
+Tool-specific file targets used in this repository:
+- `PGGB`: `pggb_<DATASET_SHORT>.gfa`, `pggb_<DATASET_SHORT>_with_wlines.gfa`,
+  `pggb_<DATASET_SHORT>_with_plines.gfa`
+- `Minigraph`: `minigraph_<DATASET_SHORT>.gfa`,
+  `minigraph_<DATASET_SHORT>_with_wlines.gfa`,
+  `minigraph_<DATASET_SHORT>_with_plines.gfa`
+- `MinigraphCactus`: `minigraphcactus_<DATASET_SHORT>.gfa`,
+  `minigraphcactus_<DATASET_SHORT>_with_wlines.gfa`,
+  `minigraphcactus_<DATASET_SHORT>_with_plines.gfa`
+- `Cactus`: `cactus_<DATASET_SHORT>.gfa`, `cactus_<DATASET_SHORT>_with_wlines.gfa`,
+  `cactus_<DATASET_SHORT>_with_plines.gfa`
+- `ProgressiveCactus`: `progressivecactus_<DATASET_SHORT>.gfa`,
+  `progressivecactus_<DATASET_SHORT>_with_wlines.gfa`,
+  `progressivecactus_<DATASET_SHORT>_with_plines.gfa`
+
+To inspect a large `GFA` without opening the full file in the editor, create a
+lightweight preview containing only the header plus `W`/`P` records. Example:
+
+```bash
+cd /home/azureuser/constructionBS
+grep -nE '^[HWP]	' results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
+  > results/C4_TEST/Cactus/outputs/cactus_C4.preview.txt
+```
+
 For `PGGB`, use the official container image and prepare one aggregated FASTA
 per dataset. The input FASTA must also be indexed with `samtools faidx`, and if
 the sequence names do not respect PanSN naming you must provide the haplotype
@@ -179,7 +246,7 @@ python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
 ```
 
 This produces:
-- `results/C4_TEST/PGGB/outputs/pggb_graph.gfa`
+- `results/C4_TEST/PGGB/outputs/pggb_C4.gfa`
 - `results/C4_TEST/PGGB/outputs/artifacts/`
 - `results/C4_TEST/PGGB/logs/execution.log`
 - `results/C4_TEST/PGGB/logs/timing.log`
@@ -187,7 +254,10 @@ This produces:
 Notes from the validated runs:
 - `PGGB` writes many intermediate and auxiliary files in its output directory
 - the final graph to keep is `*.smooth.final.gfa`
-- `utils/organize_outputs.py PGGB ...` copies that file to `pggb_graph.gfa` and moves the remaining artifacts into `outputs/artifacts/`
+- `utils/organize_outputs.py PGGB ...` copies that file to `pggb_<DATASET_SHORT>.gfa` and moves the remaining artifacts into `outputs/artifacts/`
+- `pggb_<DATASET_SHORT>.gfa` is the canonical output kept by this workflow
+- if you also want explicit `W`/`P` variants, use the shared conversion patterns
+  from `Common GFA Line Encodings`
 - the run can still produce a final graph even if `multiqc` is missing from the image; in that case the warning remains in `execution.log`
 
 To keep a stable layout after a run, you can normalize the directory with:
@@ -197,7 +267,7 @@ python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
 ```
 
 This keeps:
-- `results/C4_TEST/PGGB/outputs/pggb_graph.gfa`
+- `results/C4_TEST/PGGB/outputs/pggb_C4.gfa`
 
 and moves the original PGGB-generated files into:
 - `results/C4_TEST/PGGB/outputs/artifacts/`
@@ -216,8 +286,8 @@ python utils/organize_outputs.py MinigraphCactus results/C4_TEST/MinigraphCactus
 ```
 
 This produces:
-- `results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph.gfa`
-- `results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph.gfa.gz`
+- `results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa`
+- `results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa.gz`
 - `results/C4_TEST/MinigraphCactus/outputs/artifacts/`
 - `results/C4_TEST/MinigraphCactus/logs/execution.log`
 - `results/C4_TEST/MinigraphCactus/logs/timing.log`
@@ -226,6 +296,8 @@ Notes from the validated runs:
 - `MinigraphCactus` writes many intermediate files and directories, including `HAL`, `PAF/GAF`, stats, and chromosomal subproblems
 - the final graph to keep is the top-level `*.gfa.gz` output produced by `cactus-pangenome`
 - `utils/organize_outputs.py MinigraphCactus ...` keeps both a canonical compressed graph and an uncompressed `GFA` copy for inspection
+- the canonical `GFA` already uses `W`-lines; derive the `P`-line version using
+  the shared commands from `Common GFA Line Encodings`
 - some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
 
 For `Cactus` (distinct from `MinigraphCactus`), use the `cactus` entrypoint
@@ -246,8 +318,65 @@ python utils/organize_outputs.py Cactus results/C4_TEST/Cactus/outputs
 ```
 
 Canonical layout:
-- `results/C4_TEST/Cactus/outputs/cactus_alignment.hal`
+- `results/C4_TEST/Cactus/outputs/cactus_C4.hal`
 - `results/C4_TEST/Cactus/outputs/artifacts/`
+
+If you export `GFA` from the `HAL`, that `GFA` already uses `W`-lines; derive
+the `P`-line version using the shared commands from `Common GFA Line Encodings`.
+
+For `ProgressiveCactus`, use the dedicated `progressivecactus` service. At the
+moment the simplest workflow is to reuse `make_cactus_seqfile.py` and write the
+seqfile directly into the `ProgressiveCactus` output directory.
+
+Example for `C4_TEST`:
+
+```bash
+./utils/clean_outputs.sh C4_TEST ProgressiveCactus
+python utils/make_cactus_seqfile.py C4_TEST --output results/C4_TEST/ProgressiveCactus/outputs/c4_test_seqfile.txt
+/usr/bin/time -v -o results/C4_TEST/ProgressiveCactus/logs/timing.log docker compose run --rm progressivecactus bash -lc "cactus /results/C4_TEST/ProgressiveCactus/outputs/jobstore /results/C4_TEST/ProgressiveCactus/outputs/c4_test_seqfile.txt /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal --batchSystem single_machine --maxCores 32" > results/C4_TEST/ProgressiveCactus/logs/execution.log 2>&1
+sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
+python utils/organize_outputs.py ProgressiveCactus results/C4_TEST/ProgressiveCactus/outputs
+```
+
+Optional graph export from HAL:
+
+```bash
+docker compose run --rm progressivecactus bash -lc "hal2vg /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg"
+docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa"
+sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
+```
+
+Example for `MHC_TEST`:
+
+```bash
+./utils/clean_outputs.sh MHC_TEST ProgressiveCactus
+python utils/make_cactus_seqfile.py MHC_TEST --output results/MHC_TEST/ProgressiveCactus/outputs/mhc_test_seqfile.txt
+/usr/bin/time -v -o results/MHC_TEST/ProgressiveCactus/logs/timing.log docker compose run --rm progressivecactus bash -lc "cactus /results/MHC_TEST/ProgressiveCactus/outputs/jobstore /results/MHC_TEST/ProgressiveCactus/outputs/mhc_test_seqfile.txt /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.hal --batchSystem single_machine --maxCores 32" > results/MHC_TEST/ProgressiveCactus/logs/execution.log 2>&1
+sudo chown -R $USER:$USER results/MHC_TEST/ProgressiveCactus
+python utils/organize_outputs.py ProgressiveCactus results/MHC_TEST/ProgressiveCactus/outputs
+```
+
+Optional graph export from HAL:
+
+```bash
+docker compose run --rm progressivecactus bash -lc "hal2vg /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.hal > /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.vg"
+docker compose run --rm progressivecactus bash -lc "vg view -g /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.vg > /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.gfa"
+sudo chown -R $USER:$USER results/MHC_TEST/ProgressiveCactus
+```
+
+This produces:
+- `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.hal`
+- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.vg`
+- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.gfa`
+- `results/<DATASET>/ProgressiveCactus/logs/execution.log`
+- `results/<DATASET>/ProgressiveCactus/logs/timing.log`
+
+Notes:
+- `ProgressiveCactus` leaves a `jobstore/` under `outputs/`; if a rerun fails with `Permission denied`, fix ownership or remove the old jobstore before retrying
+- once the `GFA` has been exported from `HAL`, it already uses `W`-lines;
+  derive the `P`-line version using the shared commands from
+  `Common GFA Line Encodings`
+- some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
 
 ## Configuration
 
