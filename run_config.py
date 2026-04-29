@@ -10,6 +10,7 @@ ASSEMBLIES_INPUT_SPEC = {
 
 ASSEMBLIES_ONLY_TOOLS = (
     "Cactus",
+    "LCPan",
     "Minigraph",
     "MinigraphCactus",
     "PGGB",

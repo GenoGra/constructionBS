@@ -6,6 +6,8 @@ original workflow artifacts into an artifacts/ subdirectory.
 
 Supported tools:
   - Cactus
+  - LCPan
+  - Minigraph
   - PGGB
   - MinigraphCactus
   - ProgressiveCactus
@@ -38,6 +40,18 @@ TOOL_SPECS = {
         tool_name="Cactus",
         final_output_pattern="*.hal",
         canonical_uncompressed_suffix=".hal",
+        compressed=False,
+    ),
+    "LCPan": ToolOutputSpec(
+        tool_name="LCPan",
+        final_output_pattern="*.gfa",
+        canonical_uncompressed_suffix=".gfa",
+        compressed=False,
+    ),
+    "Minigraph": ToolOutputSpec(
+        tool_name="Minigraph",
+        final_output_pattern="*.gfa",
+        canonical_uncompressed_suffix=".gfa",
         compressed=False,
     ),
     "PGGB": ToolOutputSpec(
@@ -156,16 +170,20 @@ def remove_existing_canonical_files(
     outputs_dir: Path,
     canonical_output_name: str,
     canonical_output_gz_name: str | None,
+    preserve_names: set[str] | None = None,
 ) -> None:
     """
     Remove previously normalized top-level output files.
     """
+    preserve_names = preserve_names or set()
     canonical_paths = [outputs_dir / canonical_output_name]
 
     if canonical_output_gz_name is not None:
         canonical_paths.append(outputs_dir / canonical_output_gz_name)
 
     for path in canonical_paths:
+        if path.name in preserve_names:
+            continue
         if path.exists():
             path.unlink()
 
@@ -223,6 +241,7 @@ def organize_outputs(
         outputs_dir,
         canonical_output_name,
         canonical_output_gz_name,
+        preserve_names={final_output.name},
     )
     move_raw_artifacts(
         outputs_dir,
@@ -232,6 +251,7 @@ def organize_outputs(
     )
 
     moved_final_output = artifacts_dir / final_output.name
+    source_final_output = moved_final_output if moved_final_output.exists() else final_output
     created_paths: list[Path] = []
 
     canonical_output = outputs_dir / canonical_output_name
@@ -241,12 +261,14 @@ def organize_outputs(
             raise RuntimeError(f"{tool} is marked as compressed but has no canonical gz name")
 
         canonical_output_gz = outputs_dir / canonical_output_gz_name
-        shutil.copy2(moved_final_output, canonical_output_gz)
-        write_decompressed_copy(moved_final_output, canonical_output)
+        if source_final_output.resolve() != canonical_output_gz.resolve():
+            shutil.copy2(source_final_output, canonical_output_gz)
+        write_decompressed_copy(source_final_output, canonical_output)
 
         created_paths.extend([canonical_output, canonical_output_gz])
     else:
-        shutil.copy2(moved_final_output, canonical_output)
+        if source_final_output.resolve() != canonical_output.resolve():
+            shutil.copy2(source_final_output, canonical_output)
         created_paths.append(canonical_output)
 
     created_paths.append(artifacts_dir)

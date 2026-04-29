@@ -37,6 +37,7 @@ docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -cxggs 
 > results/C4_TEST/Minigraph/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/Minigraph
 python utils/organize_outputs.py Minigraph results/C4_TEST/Minigraph/outputs
+# Canonical output: results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa
 
 # Optional: reference-only derived encodings from Minigraph canonical GFA
 docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f /results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa > /results/C4_TEST/Minigraph/outputs/minigraph_C4_with_wlines.gfa"
@@ -47,6 +48,27 @@ sudo chown $USER:$USER \
 
 # Checks
 grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/Minigraph/logs/timing.log
+```
+
+### LCPan (C4_TEST)
+
+```bash
+cd /home/azureuser/constructionBS
+./utils/clean_outputs.sh C4_TEST LCPan
+
+# Choose one LCPan mode (-vg or -vgx) and keep only absolute container paths.
+# Example shape from LCPan help:
+#   /lcpan/bin/lcpan -vg  -r /input_data/.../ref.fa -v /input_data/.../vars.vcf [OPTIONS]
+#   /lcpan/bin/lcpan -vgx -r /input_data/.../ref.fa -v /input_data/.../vars.vcf [OPTIONS]
+/usr/bin/time -v -o results/C4_TEST/LCPan/logs/timing.log -- \
+docker compose run --rm lcpan bash -lc "<LCPAN_REAL_COMMAND_WRITING_A_.gfa_UNDER_/results/C4_TEST/LCPan/outputs>" \
+> results/C4_TEST/LCPan/logs/execution.log 2>&1
+sudo chown -R $USER:$USER results/C4_TEST/LCPan
+python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/outputs
+# Canonical output: results/C4_TEST/LCPan/outputs/lcpan_C4.gfa
+
+# Checks
+grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/LCPan/logs/timing.log
 ```
 
 ### PGGB (C4_TEST)

@@ -86,3 +86,21 @@ services:
     - /bin/bash
     - -c
     - mkdir -p /results && cactus --help > /results/progressivecactus_help.txt 2>&1
+  lcpan:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/LCPan/Dockerfile
+    volumes:
+    - type: bind
+      source: ./results
+      target: /results
+    - type: bind
+      source: ./input_data
+      target: /input_data
+    command:
+    - /bin/bash
+    - -c
+    - mkdir -p /results && /lcpan/bin/lcpan --help > /results/lcpan_help.txt 2>&1
+      || true

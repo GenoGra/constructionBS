@@ -41,6 +41,12 @@ TOOL_SERVICE_SPECS = {
         "dockerfile": "Dockerfiles/ProgressiveCactus/Dockerfile",
         "command": "mkdir -p /results && cactus --help > /results/progressivecactus_help.txt 2>&1",
     },
+
+    "LCPan": {
+        "service_name": "lcpan",
+        "dockerfile": "Dockerfiles/LCPan/Dockerfile",
+        "command": "mkdir -p /results && /lcpan/bin/lcpan --help > /results/lcpan_help.txt 2>&1 || true",
+    },
 }
 
 
