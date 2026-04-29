@@ -208,10 +208,5 @@ __marimo__/
 
 # Project data inputs/outputs
 results/
-input_data/**/ASSEMBLIES/**
-input_data/**/GRAPH/**
-input_data/**/READS/**
-input_data/**/TREE/**
-!input_data/**/META/
-!input_data/**/META/**
-input_data/**/META/dataset_info.yml
+input_data/
+dataset_info.yml
