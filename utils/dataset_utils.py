@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, TypedDict
+import fnmatch
 
 import yaml
 import shlex
@@ -417,6 +418,13 @@ def _resolve_input_spec(
         return (False, None, "missing source directory information")
 
     matching_files = dir_info.get("matching_files", [])
+    name_pattern = spec.get("name_pattern")
+    if name_pattern:
+        matching_files = [
+            file_path
+            for file_path in matching_files
+            if fnmatch.fnmatch(Path(file_path).name, name_pattern)
+        ]
 
     if mode == "many":
         if min_count is not None and len(matching_files) < min_count:

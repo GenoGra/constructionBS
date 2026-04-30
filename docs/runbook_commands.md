@@ -1,6 +1,6 @@
 # Runbook Commands
 
-Last validated: 2026-04-27
+Last validated: 2026-04-30
 
 This file collects copy-paste commands used to run graph-construction tools in this repository.
 
@@ -56,18 +56,51 @@ grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/Minigra
 cd /home/azureuser/constructionBS
 ./utils/clean_outputs.sh C4_TEST LCPan
 
-# Choose one LCPan mode (-vg or -vgx) and keep only absolute container paths.
-# Example shape from LCPan help:
-#   /lcpan/bin/lcpan -vg  -r /input_data/.../ref.fa -v /input_data/.../vars.vcf [OPTIONS]
-#   /lcpan/bin/lcpan -vgx -r /input_data/.../ref.fa -v /input_data/.../vars.vcf [OPTIONS]
+# LCPan requires a single-reference FASTA whose header matches the CHROM field of
+# the input VCF. For C4_TEST we derive a PanSN-compatible FASTA/VCF pair from PGGB.
+mkdir -p input_data/C4_TEST/GRAPH/tmp/pggb_vcf
+
+awk '
+/^>/ {
+  sub(/^>/, "", $0)
+  print ">" $0 "#C4"
+  next
+}
+{ print }
+' input_data/C4_TEST/ASSEMBLIES/c4_total.fa \
+> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa
+
+docker compose run --rm pggb bash -lc \
+"samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa"
+
+/usr/bin/time -v -o input_data/C4_TEST/GRAPH/tmp/pggb_vcf/timing.log -- \
+docker compose run --rm pggb bash -lc \
+"pggb -i /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa -n 96 -o /input_data/C4_TEST/GRAPH/tmp/pggb_vcf -V 'GRCh38#0#C4:1000'" \
+> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/execution.log 2>&1
+
+cp input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa.*.smooth.final.GRCh38#0#C4.vcf \
+  input_data/C4_TEST/GRAPH/lcpan_C4.vcf
+
+docker compose run --rm pggb bash -lc \
+"samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa 'GRCh38#0#C4' > /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
+
+docker compose run --rm pggb bash -lc \
+"samtools faidx /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
+
+# Required inputs for the actual LCPan run:
+test -f input_data/C4_TEST/GRAPH/c4_reference_pansn.fa
+test -f input_data/C4_TEST/GRAPH/c4_reference_pansn.fa.fai
+test -f input_data/C4_TEST/GRAPH/lcpan_C4.vcf
+
 /usr/bin/time -v -o results/C4_TEST/LCPan/logs/timing.log -- \
-docker compose run --rm lcpan bash -lc "<LCPAN_REAL_COMMAND_WRITING_A_.gfa_UNDER_/results/C4_TEST/LCPan/outputs>" \
+docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/outputs/lcpan_C4.log" \
 > results/C4_TEST/LCPan/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/LCPan
 python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/outputs
 # Canonical output: results/C4_TEST/LCPan/outputs/lcpan_C4.gfa
 
 # Checks
+grep -m 5 -v '^#' input_data/C4_TEST/GRAPH/lcpan_C4.vcf
 grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/LCPan/logs/timing.log
 ```
 

@@ -67,12 +67,16 @@ status: "ready"  # or "placeholder"
 description: "Dataset description"
 expected_inputs:
   assemblies: true
-  graph: false
+  graph: true
   reads: false
-  tree: true
+  tree: false
 supported_workflows:
-  - Cactus
-  - ProgressiveCactus
+  cactus: true
+  minigraph: true
+  minigraphcactus: true
+  pggb: true
+  lcpan: true
+  progressivecactus: true
 ```
 
 ## Usage
@@ -86,11 +90,11 @@ Place your datasets in the `input_data/` directory following the required struct
 Use the `utils/check_inputs.py` script to validate your datasets:
 
 ```bash
-python utils/check_inputs.py --dataset dataset_name
+python -m utils.check_inputs --dataset dataset_name
 # or inspect everything under the default input_data/ directory
-python utils/check_inputs.py
+python -m utils.check_inputs
 # or point to a custom datasets root
-python utils/check_inputs.py --input-data /path/to/input_data --dataset dataset_name
+python -m utils.check_inputs --input-data /path/to/input_data --dataset dataset_name
 ```
 
 This will provide a detailed report on:
@@ -108,11 +112,16 @@ Validated example datasets currently used in this repository are:
 - `input_data/MHC_TEST`
 - `input_data/C4_TEST`
 
-Both contain only assembly FASTA files in `ASSEMBLIES/` and are suitable for
-running `Minigraph` as separate experiments.
+Both are suitable for running `Minigraph` as separate experiments, and both now
+include validated `GRAPH/` artifacts used by the `LCPan` workflow.
 
 For `PGGB`, the same datasets are used as separate experiments, but the input
 must first be concatenated into a single FASTA per dataset.
+
+For `LCPan`, the dataset must also provide one VCF in `GRAPH/` plus a
+single-reference FASTA whose header exactly matches the VCF `CHROM` field. In
+the validated `C4_TEST` and `MHC_TEST` workflows, both files are derived from a
+temporary PanSN-normalized `PGGB` input.
 
 For `MinigraphCactus`, the same assembly-per-sample datasets can be reused,
 but the workflow needs a seqfile that maps sample names to FASTA paths.
@@ -271,6 +280,51 @@ This keeps:
 
 and moves the original PGGB-generated files into:
 - `results/C4_TEST/PGGB/outputs/artifacts/`
+
+For `LCPan`, use a PGGB-derived VCF plus a single-reference FASTA with an
+exactly matching sequence name. `LCPan` itself expects `ref.fa`, `ref.fa.fai`,
+and a plain-text `.vcf`; for the validated `C4_TEST` run the working reference
+was `GRCh38#0#C4` extracted from a temporary PanSN FASTA built from
+`c4_total.fa`.
+
+Example for `C4_TEST`:
+
+```bash
+mkdir -p input_data/C4_TEST/GRAPH/tmp/pggb_vcf
+
+awk '
+/^>/ {
+  sub(/^>/, "", $0)
+  print ">" $0 "#C4"
+  next
+}
+{ print }
+' input_data/C4_TEST/ASSEMBLIES/c4_total.fa \
+> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa
+
+docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa"
+
+/usr/bin/time -v -o input_data/C4_TEST/GRAPH/tmp/pggb_vcf/timing.log \
+docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa -n 96 -o /input_data/C4_TEST/GRAPH/tmp/pggb_vcf -V 'GRCh38#0#C4:1000'" \
+> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/execution.log 2>&1
+
+cp input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa.*.smooth.final.GRCh38#0#C4.vcf \
+  input_data/C4_TEST/GRAPH/lcpan_C4.vcf
+
+docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa 'GRCh38#0#C4' > /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
+docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
+
+./utils/clean_outputs.sh C4_TEST LCPan
+/usr/bin/time -v -o results/C4_TEST/LCPan/logs/timing.log docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/outputs/lcpan_C4.log" > results/C4_TEST/LCPan/logs/execution.log 2>&1
+sudo chown -R $USER:$USER results/C4_TEST/LCPan
+python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/outputs
+```
+
+This produces:
+- `results/C4_TEST/LCPan/outputs/lcpan_C4.gfa`
+- `results/C4_TEST/LCPan/outputs/artifacts/`
+- `results/C4_TEST/LCPan/logs/execution.log`
+- `results/C4_TEST/LCPan/logs/timing.log`
 
 For `MinigraphCactus`, use the Cactus container with a generated seqfile and
 keep the run wrapped with `/usr/bin/time` so the logs match the other tools.

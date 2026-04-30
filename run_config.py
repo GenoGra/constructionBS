@@ -10,7 +10,6 @@ ASSEMBLIES_INPUT_SPEC = {
 
 ASSEMBLIES_ONLY_TOOLS = (
     "Cactus",
-    "LCPan",
     "Minigraph",
     "MinigraphCactus",
     "PGGB",
@@ -21,12 +20,15 @@ TOOL_REQUIREMENTS = {
     for tool_name in ASSEMBLIES_ONLY_TOOLS
 }
 TOOL_REQUIREMENTS["ProgressiveCactus"] = {
-    "required_dirs": ["ASSEMBLIES", "TREE", "META"],
+    "required_dirs": ["ASSEMBLIES", "META"],
+}
+TOOL_REQUIREMENTS["LCPan"] = {
+    "required_dirs": ["ASSEMBLIES", "GRAPH", "META"],
 }
 
 EXPECTED_FILE_TYPES = {
     "ASSEMBLIES": [".fa", ".fasta", ".fna"],
-    "GRAPH": [".gfa", ".rgfa"],
+    "GRAPH": [".gfa", ".rgfa", ".vcf"],
     "READS": [".fa", ".fasta", ".fq", ".fastq", ".txt"],
     "TREE": [".nwk", ".newick", ".tree"],
 }
@@ -41,7 +43,8 @@ TOOL_INPUT_SPECS["Cactus"] = {
 TOOL_INPUT_SPECS["Minigraph"] = {
     "assemblies": {"source": "ASSEMBLIES", "mode": "many", "min_count": 2},
 }
-TOOL_INPUT_SPECS["ProgressiveCactus"] = {
-    **ASSEMBLIES_INPUT_SPEC,
-    "tree": {"source": "TREE", "mode": "single"},
+TOOL_INPUT_SPECS["LCPan"] = {
+    "reference": {"source": "ASSEMBLIES", "mode": "single", "name_pattern": "*_total.fa"},
+    "variants": {"source": "GRAPH", "mode": "single", "name_pattern": "lcpan_*.vcf"},
 }
+TOOL_INPUT_SPECS["ProgressiveCactus"] = ASSEMBLIES_INPUT_SPEC.copy()
