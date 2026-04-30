@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN git clone --recursive https://github.com/BilkentCompGen/lcpan.git /lcpan
 WORKDIR /lcpan
-RUN git checkout 8cb89b5
+RUN git checkout v1.1
 RUN git submodule update --init --recursive
 RUN make install && make
 

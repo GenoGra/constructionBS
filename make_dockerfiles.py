@@ -1,17 +1,17 @@
 """
-Create Dockerfiles for each configured tool version using the templates defined
-in this module and the versions declared in ``tools_config.yml``.
+Create Dockerfiles for each configured tool reference using the templates defined
+in this module and the refs declared in ``tools_config.yml``.
 """
 
-import yaml
 import os
 import shutil
 from pathlib import Path
+import yaml
 
 DOCKERFILES = {
     
     'cactus': '''\
-FROM quay.io/comparative-genomics-toolkit/cactus:{}
+FROM quay.io/comparative-genomics-toolkit/cactus{}
 
 RUN mkdir results
 RUN mkdir input_data
@@ -43,7 +43,7 @@ CMD ["/bin/bash"]
     ''',
 
     'minigraphcactus': '''\
-FROM quay.io/comparative-genomics-toolkit/cactus:{}
+FROM quay.io/comparative-genomics-toolkit/cactus{}
 
 RUN mkdir results
 RUN mkdir input_data
@@ -53,7 +53,7 @@ CMD ["/bin/bash"]
     ''',
 
     'pggb': '''\
-FROM ghcr.io/pangenome/pggb:{}
+FROM ghcr.io/pangenome/pggb{}
 
 RUN mkdir -p /results /input_data
 
@@ -62,7 +62,7 @@ CMD ["/bin/bash"]
     ''',
 
     'progressivecactus': '''\
-FROM quay.io/comparative-genomics-toolkit/cactus:{}
+FROM quay.io/comparative-genomics-toolkit/cactus{}
 
 RUN mkdir results
 RUN mkdir input_data
@@ -99,6 +99,59 @@ CMD ["/bin/bash"]
     '''
 }
 
+EXPECTED_SOURCE_BY_TOOL = {
+    "Cactus": "image",
+    "Minigraph": "git",
+    "MinigraphCactus": "image",
+    "PGGB": "image",
+    "ProgressiveCactus": "image",
+    "LCPan": "git",
+}
+
+
+def resolve_ref(tool_name: str, tool_config: dict) -> str:
+    """
+    Read the canonical ``ref`` field, keeping backward compatibility with
+    legacy ``version`` entries.
+    """
+    ref = tool_config.get("ref", tool_config.get("version"))
+    if not ref:
+        raise ValueError(f"{tool_name}: missing 'ref' in tools_config.yml")
+    return str(ref)
+
+
+def validate_source(tool_name: str, tool_config: dict) -> None:
+    """
+    Validate optional source metadata so config stays explicit and consistent.
+    """
+    declared_source = tool_config.get("source")
+    expected_source = EXPECTED_SOURCE_BY_TOOL.get(tool_name)
+    if not expected_source:
+        raise ValueError(f"{tool_name}: unsupported tool in make_dockerfiles.py")
+    if declared_source and declared_source != expected_source:
+        raise ValueError(
+            f"{tool_name}: source '{declared_source}' does not match expected "
+            f"'{expected_source}' for this Dockerfile template"
+        )
+
+
+def build_template_ref(tool_name: str, tool_config: dict) -> str:
+    """
+    Build the string inserted into FROM/checkouts from a canonical ref.
+    Image refs support both tags and digests.
+    """
+    ref = resolve_ref(tool_name, tool_config)
+    source = tool_config.get("source", EXPECTED_SOURCE_BY_TOOL[tool_name])
+
+    if source == "image":
+        if ref.startswith("sha256:"):
+            return f"@{ref}"
+        if ref.startswith("@"):
+            return ref
+        return f":{ref}"
+    return ref
+
+
 def main():
     with open('tools_config.yml', 'r') as file:
         config = yaml.safe_load(file)
@@ -116,11 +169,12 @@ def main():
     for tool in config:
         os.makedirs(tool)
 
-    for tool in config:
+    for tool, tool_config in config.items():
+        validate_source(tool, tool_config)
+        ref = build_template_ref(tool, tool_config)
         os.chdir(os.path.join(DOCKERFILES_FOLDER, tool))
-        file_tmp = open('Dockerfile', 'w')
-        file_tmp.write(DOCKERFILES[tool.lower()].format(config[tool]['version']))
-        file_tmp.close()
+        with open('Dockerfile', 'w') as file_tmp:
+            file_tmp.write(DOCKERFILES[tool.lower()].format(ref))
 
     print('\nSuccessfully created dockerfiles for the following tools:')
     for tool in config:

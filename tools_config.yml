@@ -1,17 +1,23 @@
 Cactus:
-  version: v3.1.4 
+  source: image
+  ref: v3.1.4
 
 Minigraph:
-  version: 7e3e65c
+  source: git
+  ref: v0.21
 
 MinigraphCactus:
-  version: v3.1.4 
+  source: image
+  ref: v3.1.4
 
 PGGB:
-  version: v0.7.4
+  source: image
+  ref: sha256:08bd929d8b60270719449434308fe78965f4567c45b35ea1a9558f2ee3004cc0
 
 ProgressiveCactus:
-  version: v3.1.4 
+  source: image
+  ref: v3.1.4
 
 LCPan:
-  version: 8cb89b5
+  source: git
+  ref: v1.1
