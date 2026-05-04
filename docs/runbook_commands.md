@@ -21,6 +21,19 @@ Path and logging policy (always apply):
 cd /home/azureuser/constructionBS
 ```
 
+## Result Summaries
+
+After one dataset run is complete, generate compact Markdown summaries with:
+
+```bash
+python utils/summarize_timing_logs.py C4_TEST
+python utils/summarize_output_graphs.py C4_TEST
+```
+
+This writes:
+- `results/<DATASET>/timing_summary.md`
+- `results/<DATASET>/output_summary.md`
+
 ## C4 End-to-End Commands By Tool
 
 This section is intentionally redundant and operational: each tool has one

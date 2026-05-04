@@ -171,6 +171,18 @@ This produces:
 - `results/MHC_TEST/Minigraph/logs/execution.log`
 - `results/MHC_TEST/Minigraph/logs/timing.log`
 
+To build compact Markdown summaries for one dataset after runs complete, use:
+
+```bash
+cd /home/azureuser/constructionBS
+python utils/summarize_timing_logs.py C4_TEST
+python utils/summarize_output_graphs.py C4_TEST
+```
+
+This writes:
+- `results/<DATASET>/timing_summary.md`
+- `results/<DATASET>/output_summary.md`
+
 ## Common GFA Line Encodings
 
 Some workflows already write path information as `W`-lines or `P`-lines, while
