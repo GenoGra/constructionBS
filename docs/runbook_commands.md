@@ -12,7 +12,7 @@ Conventions:
 Path and logging policy (always apply):
 - Launch every `docker compose` command from repo root: `/home/azureuser/constructionBS`
 - Inside containers, use only absolute mounted paths (`/results/...`, `/input_data/...`)
-- Never use relative container paths for graph files (for example `minigraphcactus_graph.gfa`)
+- Never use relative container paths for graph files (for example `minigraphcactus_C4.gfa`)
 - Use `/usr/bin/time -v -o ... -- docker compose ...` for all tools to keep `timing.log` format uniform
 
 ## Common Setup
@@ -112,9 +112,43 @@ sudo chown -R $USER:$USER results/C4_TEST/LCPan
 python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/outputs
 # Canonical output: results/C4_TEST/LCPan/outputs/lcpan_C4.gfa
 
+# Optional normalization before vg convert:
+# LCPan can emit orphan L-lines (for example a single `L 0 ...` link in C4_TEST)
+# that `vg convert` rejects. This filter keeps all S/P/W records and only drops
+# links whose endpoints are not present as S-segment IDs.
+mkdir -p results/C4_TEST/LCPan/outputs/artifacts
+awk '
+/^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
+/^L\t/ { lines[++n] = $0; next }
+{ lines[++n] = $0 }
+END {
+  for (i = 1; i <= n; i++) {
+    split(lines[i], f, "\t")
+    if (f[1] == "L" && (!(f[2] in ids) || !(f[4] in ids))) continue
+    print lines[i]
+  }
+}
+' results/C4_TEST/LCPan/outputs/lcpan_C4.gfa \
+> results/C4_TEST/LCPan/outputs/artifacts/lcpan_C4_vg_ready.gfa
+
+# P-lines export from the normalized GFA.
+# Write to a temporary file first so failures do not leave a misleading empty
+# final output behind.
+docker compose run --rm progressivecactus bash -lc \
+"vg convert -g -f -W /results/C4_TEST/LCPan/outputs/artifacts/lcpan_C4_vg_ready.gfa > /results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa.tmp" && \
+mv results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa.tmp \
+  results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa
+
+# W-lines export: keep the original LCPan GFA as the W-lines version because
+# `vg convert` is only needed for the P-lines rewrite.
+cp results/C4_TEST/LCPan/outputs/lcpan_C4.gfa \
+  results/C4_TEST/LCPan/outputs/lcpan_C4_with_wlines.gfa
+
 # Checks
 grep -m 5 -v '^#' input_data/C4_TEST/GRAPH/lcpan_C4.vcf
 grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/LCPan/logs/timing.log
+ls -lh results/C4_TEST/LCPan/outputs/lcpan_C4_with_wlines.gfa \
+  results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa
 ```
 
 ### PGGB (C4_TEST)
@@ -129,13 +163,18 @@ docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/ASSEMBLIES/c4
 > results/C4_TEST/PGGB/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/PGGB
 python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
+cp results/C4_TEST/PGGB/outputs/pggb_graph.gfa \
+  results/C4_TEST/PGGB/outputs/pggb_C4.gfa
+# Canonical output: results/C4_TEST/PGGB/outputs/pggb_C4.gfa
 
 # Derived encodings from PGGB canonical GFA (canonical already uses P-lines)
-cp results/C4_TEST/PGGB/outputs/pggb_graph.gfa results/C4_TEST/PGGB/outputs/pggb_graph_with_plines.gfa
-docker compose run --rm progressivecactus bash -lc "vg convert -g -f /results/C4_TEST/PGGB/outputs/pggb_graph.gfa > /results/C4_TEST/PGGB/outputs/pggb_graph_with_wlines.gfa"
+cp results/C4_TEST/PGGB/outputs/pggb_C4.gfa \
+  results/C4_TEST/PGGB/outputs/pggb_C4_with_plines.gfa
+docker compose run --rm progressivecactus bash -lc "vg convert -g -f /results/C4_TEST/PGGB/outputs/pggb_C4.gfa > /results/C4_TEST/PGGB/outputs/pggb_C4_with_wlines.gfa"
 sudo chown $USER:$USER \
-  results/C4_TEST/PGGB/outputs/pggb_graph_with_wlines.gfa \
-  results/C4_TEST/PGGB/outputs/pggb_graph_with_plines.gfa
+  results/C4_TEST/PGGB/outputs/pggb_C4.gfa \
+  results/C4_TEST/PGGB/outputs/pggb_C4_with_wlines.gfa \
+  results/C4_TEST/PGGB/outputs/pggb_C4_with_plines.gfa
 
 # Checks
 grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/PGGB/logs/timing.log
@@ -152,13 +191,18 @@ docker compose run --rm minigraphcactus bash -lc "cactus-pangenome /results/C4_T
 > results/C4_TEST/MinigraphCactus/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/MinigraphCactus
 python utils/organize_outputs.py MinigraphCactus results/C4_TEST/MinigraphCactus/outputs
+# Canonical outputs:
+# - results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa.gz
+# - results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa
 
 # Derived encodings from MinigraphCactus canonical GFA (canonical already uses W-lines)
-cp results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph.gfa results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph_with_wlines.gfa
-docker compose run --rm minigraphcactus bash -lc "vg convert -g -f -W /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph.gfa > /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph_with_plines.gfa"
+cp results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
+  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_wlines.gfa
+docker compose run --rm minigraphcactus bash -lc "vg convert -g -f -W /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa > /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_plines.gfa"
 sudo chown $USER:$USER \
-  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph_with_wlines.gfa \
-  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph_with_plines.gfa
+  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
+  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_wlines.gfa \
+  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_plines.gfa
 
 # Checks
 grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/MinigraphCactus/logs/timing.log
@@ -179,10 +223,12 @@ python utils/organize_outputs.py Cactus results/C4_TEST/Cactus/outputs
 # Optional export to VG/GFA (if not already materialized by organizer)
 docker compose run --rm cactus bash -lc "hal2vg /results/C4_TEST/Cactus/outputs/cactus_C4.hal > /results/C4_TEST/Cactus/outputs/cactus_C4.vg"
 docker compose run --rm cactus bash -lc "vg view -g /results/C4_TEST/Cactus/outputs/cactus_C4.vg > /results/C4_TEST/Cactus/outputs/cactus_C4.gfa"
+# Canonical output: results/C4_TEST/Cactus/outputs/cactus_C4.gfa
 
 # Derived encodings from Cactus canonical GFA (canonical already uses W-lines)
-cp results/C4_TEST/Cactus/outputs/cactus_alignment.gfa results/C4_TEST/Cactus/outputs/cactus_alignment_with_wlines.gfa
-docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W /results/C4_TEST/Cactus/outputs/cactus_alignment.gfa > /results/C4_TEST/Cactus/outputs/cactus_alignment_with_plines.gfa"
+cp results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
+  results/C4_TEST/Cactus/outputs/cactus_C4_with_wlines.gfa
+docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W /results/C4_TEST/Cactus/outputs/cactus_C4.gfa > /results/C4_TEST/Cactus/outputs/cactus_C4_with_plines.gfa"
 sudo chown -R $USER:$USER results/C4_TEST/Cactus
 
 # Checks
@@ -204,6 +250,7 @@ python utils/organize_outputs.py ProgressiveCactus results/C4_TEST/ProgressiveCa
 # Optional export to VG/GFA (if not already materialized by organizer)
 docker compose run --rm progressivecactus bash -lc "hal2vg /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg"
 docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa"
+# Canonical output: results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa
 
 # Derived encodings from ProgressiveCactus canonical GFA (canonical already uses W-lines)
 cp results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_with_wlines.gfa
@@ -230,7 +277,7 @@ Example (`MinigraphCactus`, C4):
 
 ```bash
 docker compose run --rm minigraphcactus bash -lc \
-'vg convert -g -f -W /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph.gfa > /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_graph_with_plines.gfa'
+'vg convert -g -f -W /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa > /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_plines.gfa'
 ```
 
 ## Quick Troubleshooting

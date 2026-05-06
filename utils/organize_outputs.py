@@ -30,6 +30,8 @@ class ToolOutputSpec:
     tool_name: str
     final_output_pattern: str
     canonical_uncompressed_suffix: str
+    optional_top_level_suffixes: tuple[str, ...] = ()
+    legacy_prefixes: tuple[str, ...] = ()
     exclude_suffixes: tuple[str, ...] = ()
     compressed: bool = False
     canonical_compressed_suffix: str | None = None
@@ -40,24 +42,37 @@ TOOL_SPECS = {
         tool_name="Cactus",
         final_output_pattern="*.hal",
         canonical_uncompressed_suffix=".hal",
+        optional_top_level_suffixes=(".vg", ".gfa", "_with_plines.gfa", "_with_wlines.gfa"),
+        legacy_prefixes=("cactus_alignment",),
         compressed=False,
     ),
     "LCPan": ToolOutputSpec(
         tool_name="LCPan",
         final_output_pattern="*.gfa",
         canonical_uncompressed_suffix=".gfa",
+        optional_top_level_suffixes=("_with_plines.gfa", "_with_wlines.gfa"),
+        exclude_suffixes=(
+            "_with_plines.gfa",
+            "_with_wlines.gfa",
+            "_vg_ready.gfa",
+            "_vgfixed.gfa",
+        ),
         compressed=False,
     ),
     "Minigraph": ToolOutputSpec(
         tool_name="Minigraph",
         final_output_pattern="*.gfa",
         canonical_uncompressed_suffix=".gfa",
+        optional_top_level_suffixes=("_with_plines.gfa", "_with_wlines.gfa"),
+        exclude_suffixes=("_with_plines.gfa", "_with_wlines.gfa"),
         compressed=False,
     ),
     "PGGB": ToolOutputSpec(
         tool_name="PGGB",
         final_output_pattern="*.smooth.final.gfa",
         canonical_uncompressed_suffix=".gfa",
+        optional_top_level_suffixes=("_with_plines.gfa", "_with_wlines.gfa"),
+        legacy_prefixes=("pggb_graph",),
         compressed=False,
     ),
     "MinigraphCactus": ToolOutputSpec(
@@ -65,6 +80,8 @@ TOOL_SPECS = {
         final_output_pattern="*.gfa.gz",
         canonical_uncompressed_suffix=".gfa",
         canonical_compressed_suffix=".gfa.gz",
+        optional_top_level_suffixes=("_with_plines.gfa", "_with_wlines.gfa"),
+        legacy_prefixes=("minigraphcactus_graph",),
         exclude_suffixes=(".sv.gfa.gz",),
         compressed=True,
     ),
@@ -72,6 +89,7 @@ TOOL_SPECS = {
         tool_name="ProgressiveCactus",
         final_output_pattern="*.hal",
         canonical_uncompressed_suffix=".hal",
+        optional_top_level_suffixes=(".vg", ".gfa", "_with_plines.gfa", "_with_wlines.gfa"),
         compressed=False,
     ),
 }
@@ -106,7 +124,7 @@ def infer_dataset_short(dataset_name: str) -> str:
 def build_canonical_names(
     spec: ToolOutputSpec,
     dataset_short: str,
-) -> tuple[str, str | None]:
+) -> tuple[str, str, str | None]:
     """
     Build canonical output filenames for one tool and dataset token.
     """
@@ -117,7 +135,7 @@ def build_canonical_names(
     if spec.canonical_compressed_suffix is not None:
         canonical_output_gz_name = f"{base_name}{spec.canonical_compressed_suffix}"
 
-    return canonical_output_name, canonical_output_gz_name
+    return base_name, canonical_output_name, canonical_output_gz_name
 
 
 def find_final_output(outputs_dir: Path, spec: ToolOutputSpec) -> Path:
@@ -153,6 +171,14 @@ def write_decompressed_copy(source_gz: Path, target_gfa: Path) -> None:
         shutil.copyfileobj(src, dst)
 
 
+def write_compressed_copy(source_gfa: Path, target_gz: Path) -> None:
+    """
+    Write a gzip-compressed copy from an uncompressed GFA source graph.
+    """
+    with source_gfa.open("rb") as src, gzip.open(target_gz, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+
+
 def reset_artifacts_dir(outputs_dir: Path) -> Path:
     """
     Recreate artifacts/ from scratch.
@@ -164,6 +190,45 @@ def reset_artifacts_dir(outputs_dir: Path) -> Path:
 
     artifacts_dir.mkdir()
     return artifacts_dir
+
+
+def find_primary_source(
+    outputs_dir: Path,
+    spec: ToolOutputSpec,
+    canonical_output_name: str,
+    canonical_output_gz_name: str | None,
+) -> Path:
+    """
+    Prefer the raw workflow final output, but fall back to an existing canonical file.
+    """
+    matches = sorted(
+        path
+        for path in outputs_dir.glob(spec.final_output_pattern)
+        if not any(path.name.endswith(suffix) for suffix in spec.exclude_suffixes)
+    )
+
+    if len(matches) > 1:
+        raise RuntimeError(
+            f"multiple {spec.tool_name} final outputs found; "
+            "clean the directory or pick one manually: "
+            + ", ".join(path.name for path in matches)
+        )
+
+    if matches:
+        return matches[0]
+
+    canonical_candidates = []
+    if canonical_output_gz_name is not None:
+        canonical_candidates.append(outputs_dir / canonical_output_gz_name)
+    canonical_candidates.append(outputs_dir / canonical_output_name)
+
+    for candidate in canonical_candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(
+        f"no final output matching '{spec.final_output_pattern}' found in {outputs_dir}"
+    )
 
 
 def remove_existing_canonical_files(
@@ -186,6 +251,41 @@ def remove_existing_canonical_files(
             continue
         if path.exists():
             path.unlink()
+
+
+def copy_optional_top_level_files(
+    spec: ToolOutputSpec,
+    artifacts_dir: Path,
+    outputs_dir: Path,
+    canonical_base_name: str,
+) -> list[Path]:
+    """
+    Restore optional exported graph companions using canonical dataset-specific names.
+    """
+    created_paths: list[Path] = []
+    source_prefixes = (canonical_base_name, *spec.legacy_prefixes)
+
+    for suffix in spec.optional_top_level_suffixes:
+        canonical_target = outputs_dir / f"{canonical_base_name}{suffix}"
+        chosen_source: Path | None = None
+
+        for prefix in source_prefixes:
+            candidate = artifacts_dir / f"{prefix}{suffix}"
+            if not candidate.exists():
+                continue
+            if candidate.stat().st_size > 0:
+                chosen_source = candidate
+                break
+            if chosen_source is None:
+                chosen_source = candidate
+
+        if chosen_source is None:
+            continue
+
+        shutil.copy2(chosen_source, canonical_target)
+        created_paths.append(canonical_target)
+
+    return created_paths
 
 
 def move_raw_artifacts(
@@ -230,12 +330,17 @@ def organize_outputs(
     spec = TOOL_SPECS[tool]
     dataset_name = infer_dataset_name(outputs_dir)
     resolved_dataset_short = dataset_short or infer_dataset_short(dataset_name)
-    canonical_output_name, canonical_output_gz_name = build_canonical_names(
+    canonical_base_name, canonical_output_name, canonical_output_gz_name = build_canonical_names(
         spec,
         resolved_dataset_short,
     )
 
-    final_output = find_final_output(outputs_dir, spec)
+    final_output = find_primary_source(
+        outputs_dir,
+        spec,
+        canonical_output_name,
+        canonical_output_gz_name,
+    )
     artifacts_dir = reset_artifacts_dir(outputs_dir)
     remove_existing_canonical_files(
         outputs_dir,
@@ -261,9 +366,14 @@ def organize_outputs(
             raise RuntimeError(f"{tool} is marked as compressed but has no canonical gz name")
 
         canonical_output_gz = outputs_dir / canonical_output_gz_name
-        if source_final_output.resolve() != canonical_output_gz.resolve():
-            shutil.copy2(source_final_output, canonical_output_gz)
-        write_decompressed_copy(source_final_output, canonical_output)
+        if source_final_output.suffix == ".gz":
+            if source_final_output.resolve() != canonical_output_gz.resolve():
+                shutil.copy2(source_final_output, canonical_output_gz)
+            write_decompressed_copy(source_final_output, canonical_output)
+        else:
+            if source_final_output.resolve() != canonical_output.resolve():
+                shutil.copy2(source_final_output, canonical_output)
+            write_compressed_copy(source_final_output, canonical_output_gz)
 
         created_paths.extend([canonical_output, canonical_output_gz])
     else:
@@ -271,6 +381,14 @@ def organize_outputs(
             shutil.copy2(source_final_output, canonical_output)
         created_paths.append(canonical_output)
 
+    created_paths.extend(
+        copy_optional_top_level_files(
+            spec,
+            artifacts_dir,
+            outputs_dir,
+            canonical_base_name,
+        )
+    )
     created_paths.append(artifacts_dir)
     return created_paths
 

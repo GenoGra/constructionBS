@@ -23,12 +23,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_ROOT = REPO_ROOT / "results"
 
 CANONICAL_GRAPH_PATTERNS = {
-    "PGGB": "outputs/pggb_*.gfa",
-    "Minigraph": "outputs/minigraph_*.gfa",
-    "MinigraphCactus": "outputs/minigraphcactus_graph.gfa",
-    "Cactus": "outputs/cactus_alignment.gfa",
-    "ProgressiveCactus": "outputs/progressivecactus_*.gfa",
-    "LCPan": "outputs/lcpan_*.gfa",
+    "PGGB": ("outputs/pggb_{dataset_short}.gfa",),
+    "Minigraph": ("outputs/minigraph_{dataset_short}.gfa",),
+    "MinigraphCactus": (
+        "outputs/minigraphcactus_{dataset_short}.gfa",
+        "outputs/minigraphcactus_graph.gfa",
+    ),
+    "Cactus": (
+        "outputs/cactus_{dataset_short}.gfa",
+        "outputs/cactus_alignment.gfa",
+    ),
+    "ProgressiveCactus": ("outputs/progressivecactus_{dataset_short}.gfa",),
+    "LCPan": ("outputs/lcpan_{dataset_short}.gfa",),
 }
 
 EXCLUDED_SUFFIXES = (
@@ -64,27 +70,47 @@ def format_size_bytes(value: int) -> str:
     return str(value)
 
 
+def dataset_short_name(dataset_dir: Path) -> str:
+    """
+    Convert a dataset directory name like MHC_TEST into MHC.
+    """
+    return re.sub(r"_TEST$", "", dataset_dir.name)
+
+
 def find_canonical_graph(dataset_dir: Path, tool: str) -> Path | None:
     """
     Return the canonical top-level GFA for one tool, excluding derived variants.
+    Prefer dataset-specific renamed outputs when both renamed and legacy files exist.
     """
-    pattern = CANONICAL_GRAPH_PATTERNS[tool]
-    matches = sorted(
-        path
-        for path in (dataset_dir / tool).glob(pattern)
-        if not any(path.name.endswith(suffix) for suffix in EXCLUDED_SUFFIXES)
-    )
+    patterns = CANONICAL_GRAPH_PATTERNS[tool]
+    dataset_short = dataset_short_name(dataset_dir)
 
-    if not matches:
-        return None
+    empty_match: Path | None = None
 
-    if len(matches) > 1:
-        raise RuntimeError(
-            f"multiple canonical graph candidates found for {tool}: "
-            + ", ".join(path.name for path in matches)
+    for pattern in patterns:
+        resolved_pattern = pattern.format(dataset_short=dataset_short)
+        matches = sorted(
+            path
+            for path in (dataset_dir / tool).glob(resolved_pattern)
+            if not any(path.name.endswith(suffix) for suffix in EXCLUDED_SUFFIXES)
         )
 
-    return matches[0]
+        if not matches:
+            continue
+
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"multiple canonical graph candidates found for {tool}: "
+                + ", ".join(path.name for path in matches)
+            )
+
+        match = matches[0]
+        if match.stat().st_size > 0:
+            return match
+        if empty_match is None:
+            empty_match = match
+
+    return empty_match
 
 
 def count_gfa_records(graph_path: Path) -> tuple[int, int, int, int]:

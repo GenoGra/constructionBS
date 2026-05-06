@@ -163,11 +163,24 @@ inside the container and wrap it with `/usr/bin/time` so that both
 
 ```bash
 mkdir -p results/MHC_TEST/Minigraph/outputs results/MHC_TEST/Minigraph/logs
-docker compose run --rm minigraph bash -lc "/usr/bin/time -v -o /results/MHC_TEST/Minigraph/logs/timing.log bash -lc 'cd /minigraph && ./minigraph -cxggs /input_data/MHC_TEST/ASSEMBLIES/MHC-*.fa > /results/MHC_TEST/Minigraph/outputs/minigraph_graph.gfa' > /results/MHC_TEST/Minigraph/logs/execution.log 2>&1"
+/usr/bin/time -v -o results/MHC_TEST/Minigraph/logs/timing.log -- \
+docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -cxggs /input_data/MHC_TEST/ASSEMBLIES/MHC-*.fa > /results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa" \
+> results/MHC_TEST/Minigraph/logs/execution.log 2>&1
+sudo chown -R $USER:$USER results/MHC_TEST/Minigraph
+python utils/organize_outputs.py Minigraph results/MHC_TEST/Minigraph/outputs
+
+# Optional: reference-only derived encodings from the canonical GFA
+docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f /results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa > /results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_wlines.gfa"
+docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W /results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa > /results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_plines.gfa"
+sudo chown $USER:$USER \
+  results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_wlines.gfa \
+  results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_plines.gfa
 ```
 
 This produces:
-- `results/MHC_TEST/Minigraph/outputs/minigraph_graph.gfa`
+- `results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa`
+- optional `results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_wlines.gfa`
+- optional `results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_plines.gfa`
 - `results/MHC_TEST/Minigraph/logs/execution.log`
 - `results/MHC_TEST/Minigraph/logs/timing.log`
 
@@ -276,6 +289,7 @@ Notes from the validated runs:
 - `PGGB` writes many intermediate and auxiliary files in its output directory
 - the final graph to keep is `*.smooth.final.gfa`
 - `utils/organize_outputs.py PGGB ...` copies that file to `pggb_<DATASET_SHORT>.gfa` and moves the remaining artifacts into `outputs/artifacts/`
+- if dataset-specific `*_with_wlines.gfa` or `*_with_plines.gfa` files are already present at the top level, rerunning `organize_outputs.py` keeps publishing them with the same canonical dataset-specific names
 - `pggb_<DATASET_SHORT>.gfa` is the canonical output kept by this workflow
 - if you also want explicit `W`/`P` variants, use the shared conversion patterns
   from `Common GFA Line Encodings`
@@ -334,9 +348,14 @@ python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/outputs
 
 This produces:
 - `results/C4_TEST/LCPan/outputs/lcpan_C4.gfa`
+- optional `results/C4_TEST/LCPan/outputs/lcpan_C4_with_wlines.gfa`
+- optional `results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa`
 - `results/C4_TEST/LCPan/outputs/artifacts/`
 - `results/C4_TEST/LCPan/logs/execution.log`
 - `results/C4_TEST/LCPan/logs/timing.log`
+
+Notes:
+- helper files used only to make `vg convert` succeed, such as `lcpan_*_vg_ready.gfa` or `lcpan_*_vgfixed.gfa`, belong under `outputs/artifacts/` instead of the top level
 
 For `MinigraphCactus`, use the Cactus container with a generated seqfile and
 keep the run wrapped with `/usr/bin/time` so the logs match the other tools.
@@ -362,6 +381,7 @@ Notes from the validated runs:
 - `MinigraphCactus` writes many intermediate files and directories, including `HAL`, `PAF/GAF`, stats, and chromosomal subproblems
 - the final graph to keep is the top-level `*.gfa.gz` output produced by `cactus-pangenome`
 - `utils/organize_outputs.py MinigraphCactus ...` keeps both a canonical compressed graph and an uncompressed `GFA` copy for inspection
+- if canonical `*_with_wlines.gfa` or `*_with_plines.gfa` files already exist, rerunning `organize_outputs.py` republishes them at the top level with dataset-specific names such as `minigraphcactus_C4_with_wlines.gfa`
 - the canonical `GFA` already uses `W`-lines; derive the `P`-line version using
   the shared commands from `Common GFA Line Encodings`
 - some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
@@ -389,6 +409,10 @@ Canonical layout:
 
 If you export `GFA` from the `HAL`, that `GFA` already uses `W`-lines; derive
 the `P`-line version using the shared commands from `Common GFA Line Encodings`.
+When those exported files are present, `organize_outputs.py` preserves the
+dataset-specific top-level names `cactus_<DATASET_SHORT>.vg`,
+`cactus_<DATASET_SHORT>.gfa`, `cactus_<DATASET_SHORT>_with_wlines.gfa`, and
+`cactus_<DATASET_SHORT>_with_plines.gfa`.
 
 For `ProgressiveCactus`, use the dedicated `progressivecactus` service. At the
 moment the simplest workflow is to reuse `make_cactus_seqfile.py` and write the
@@ -434,6 +458,9 @@ This produces:
 - `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.hal`
 - optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.vg`
 - optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.gfa`
+- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>_with_wlines.gfa`
+- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>_with_plines.gfa`
+- `results/<DATASET>/ProgressiveCactus/outputs/artifacts/`
 - `results/<DATASET>/ProgressiveCactus/logs/execution.log`
 - `results/<DATASET>/ProgressiveCactus/logs/timing.log`
 
@@ -442,6 +469,9 @@ Notes:
 - once the `GFA` has been exported from `HAL`, it already uses `W`-lines;
   derive the `P`-line version using the shared commands from
   `Common GFA Line Encodings`
+- preview and helper files such as the generated seqfile, `*.head.txt`,
+  `*.preview.txt`, and `*.paths_preview.txt` should live under
+  `outputs/artifacts/` rather than at the top level
 - some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
 
 ## Configuration
