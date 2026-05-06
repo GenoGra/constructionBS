@@ -8,6 +8,8 @@ import shutil
 from pathlib import Path
 import yaml
 
+from tool_registry import EXPECTED_SOURCE_BY_TOOL
+
 DOCKERFILES = {
     
     'cactus': '''\
@@ -98,16 +100,6 @@ CMD ["/bin/bash"]
     
     '''
 }
-
-EXPECTED_SOURCE_BY_TOOL = {
-    "Cactus": "image",
-    "Minigraph": "git",
-    "MinigraphCactus": "image",
-    "PGGB": "image",
-    "ProgressiveCactus": "image",
-    "LCPan": "git",
-}
-
 
 def resolve_ref(tool_name: str, tool_config: dict) -> str:
     """

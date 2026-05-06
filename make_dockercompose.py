@@ -7,47 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from tool_registry import COMMON_VOLUMES, TOOL_SERVICE_SPECS
 from utils.dataset_utils import create_results_structure, find_datasets, inspect_dataset
-
-
-COMMON_VOLUMES = [
-    {"type": "bind", "source": "./results", "target": "/results"},
-    {"type": "bind", "source": "./input_data", "target": "/input_data"},
-]
-
-TOOL_SERVICE_SPECS = {
-    "Cactus": {
-        "service_name": "cactus",
-        "dockerfile": "Dockerfiles/Cactus/Dockerfile",
-        "command": "mkdir -p /results && cactus --help > /results/cactus_help.txt 2>&1",
-    },
-    "Minigraph": {
-        "service_name": "minigraph",
-        "dockerfile": "Dockerfiles/Minigraph/Dockerfile",
-        "command": "mkdir -p /results && cd /minigraph && ./minigraph > /results/minigraph_help.txt 2>&1 || true",
-    },
-    "MinigraphCactus": {
-        "service_name": "minigraphcactus",
-        "dockerfile": "Dockerfiles/MinigraphCactus/Dockerfile",
-        "command": "mkdir -p /results && cactus-pangenome --help > /results/minigraphcactus_help.txt 2>&1",
-    },
-    "PGGB": {
-        "service_name": "pggb",
-        "dockerfile": "Dockerfiles/PGGB/Dockerfile",
-        "command": "mkdir -p /results && pggb --help > /results/pggb_help.txt 2>&1 || true",
-    },
-    "ProgressiveCactus": {
-        "service_name": "progressivecactus",
-        "dockerfile": "Dockerfiles/ProgressiveCactus/Dockerfile",
-        "command": "mkdir -p /results && cactus --help > /results/progressivecactus_help.txt 2>&1",
-    },
-
-    "LCPan": {
-        "service_name": "lcpan",
-        "dockerfile": "Dockerfiles/LCPan/Dockerfile",
-        "command": "mkdir -p /results && /lcpan/bin/lcpan --help > /results/lcpan_help.txt 2>&1 || true",
-    },
-}
 
 
 def build_service_definition(tool_name: str) -> tuple[str, dict]:
@@ -83,6 +44,37 @@ def build_docker_compose_services(config: dict) -> dict[str, dict]:
     return services
 
 
+def write_docker_compose(config: dict, output_path: Path = Path("docker-compose.yml")) -> None:
+    """
+    Generate docker-compose.yml from the selected tool configuration.
+    """
+    compose_config = {"services": build_docker_compose_services(config)}
+    with open(output_path, "w", encoding="utf-8") as file_tmp:
+        yaml.safe_dump(compose_config, file_tmp, sort_keys=False)
+
+
+def discover_ready_datasets(input_data_path: Path) -> list[dict]:
+    """
+    Return reports for datasets that are ready for real runs.
+    """
+    ready_datasets = []
+    for dataset_path in find_datasets(input_data_path):
+        report = inspect_dataset(dataset_path)
+        if report["structure"]["structure_ok"] and report["ready_for_real_runs"]:
+            ready_datasets.append(report)
+    return ready_datasets
+
+
+def bootstrap_results_structure(input_data_path: Path, tool_names: list[str]) -> list[Path]:
+    """
+    Ensure the standard results structure exists for every detected dataset.
+    """
+    datasets = find_datasets(input_data_path)
+    for dataset_path in datasets:
+        create_results_structure(dataset_path.name, tool_names)
+    return datasets
+
+
 def main() -> None:
     """
     Generate docker-compose.yml from tools configuration and check dataset readiness.
@@ -90,25 +82,16 @@ def main() -> None:
     with open("tools_config.yml", "r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
 
-    compose_config = {"services": build_docker_compose_services(config)}
-    with open("docker-compose.yml", "w", encoding="utf-8") as file_tmp:
-        yaml.safe_dump(compose_config, file_tmp, sort_keys=False)
-
+    write_docker_compose(config)
     print("\nSuccessfully created docker-compose.yml for help tests.\n")
 
     input_data_path = Path("input_data")
-    datasets = find_datasets(input_data_path)
-    ready_datasets = []
-    for dataset_path in datasets:
-        report = inspect_dataset(dataset_path)
-        if report["structure"]["structure_ok"] and report["ready_for_real_runs"]:
-            ready_datasets.append(report)
+    ready_datasets = discover_ready_datasets(input_data_path)
 
     if not ready_datasets:
         print("\nNo datasets ready for real runs. Generating help-only docker-compose.\n")
 
-    for dataset_path in datasets:
-        create_results_structure(dataset_path.name, list(config.keys()))
+    datasets = bootstrap_results_structure(input_data_path, list(config.keys()))
 
     if datasets:
         print("Results structure ensured for detected datasets.\n")
