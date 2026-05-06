@@ -163,8 +163,6 @@ docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/ASSEMBLIES/c4
 > results/C4_TEST/PGGB/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/PGGB
 python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
-cp results/C4_TEST/PGGB/outputs/pggb_graph.gfa \
-  results/C4_TEST/PGGB/outputs/pggb_C4.gfa
 # Canonical output: results/C4_TEST/PGGB/outputs/pggb_C4.gfa
 
 # Derived encodings from PGGB canonical GFA (canonical already uses P-lines)
@@ -220,7 +218,9 @@ docker compose run --rm cactus bash -lc "cactus /results/C4_TEST/Cactus/outputs/
 sudo chown -R $USER:$USER results/C4_TEST/Cactus
 python utils/organize_outputs.py Cactus results/C4_TEST/Cactus/outputs
 
-# Optional export to VG/GFA (if not already materialized by organizer)
+# Export to VG/GFA from the HAL output.
+# organize_outputs.py normalizes and preserves these files if they already
+# exist, but it does not perform the HAL -> VG/GFA conversion itself.
 docker compose run --rm cactus bash -lc "hal2vg /results/C4_TEST/Cactus/outputs/cactus_C4.hal > /results/C4_TEST/Cactus/outputs/cactus_C4.vg"
 docker compose run --rm cactus bash -lc "vg view -g /results/C4_TEST/Cactus/outputs/cactus_C4.vg > /results/C4_TEST/Cactus/outputs/cactus_C4.gfa"
 # Canonical output: results/C4_TEST/Cactus/outputs/cactus_C4.gfa
@@ -247,7 +247,9 @@ docker compose run --rm progressivecactus bash -lc "cactus /results/C4_TEST/Prog
 sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
 python utils/organize_outputs.py ProgressiveCactus results/C4_TEST/ProgressiveCactus/outputs
 
-# Optional export to VG/GFA (if not already materialized by organizer)
+# Export to VG/GFA from the HAL output.
+# organize_outputs.py normalizes and preserves these files if they already
+# exist, but it does not perform the HAL -> VG/GFA conversion itself.
 docker compose run --rm progressivecactus bash -lc "hal2vg /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg"
 docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa"
 # Canonical output: results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa
