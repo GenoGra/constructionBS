@@ -499,8 +499,12 @@ ProgressiveCactus:
 
 ### Tool Requirements and Input Specifications
 
-Tool requirements and input mappings are defined in `run_config.py`:
+Tool requirements, service metadata, and input mappings are centralized in
+`tool_registry.py`. The compatibility module `run_config.py` re-exports the
+tool requirements and input specifications consumed by the dataset utilities.
 
+- `TOOL_REGISTRY`: Central per-tool registry for source type, compose service
+  metadata, required directories, and input-resolution rules
 - `TOOL_REQUIREMENTS`: Specifies required directories for each tool
 - `EXPECTED_FILE_TYPES`: Maps directories to expected file extensions
 - `TOOL_INPUT_SPECS`: Defines how tool inputs are resolved from dataset files
@@ -508,10 +512,11 @@ Tool requirements and input mappings are defined in `run_config.py`:
 ## Scripts
 
 - `utils/check_inputs.py`: Dataset validation and inspection tool
-- `utils/dataset_utils.py`: Utility functions for dataset handling
+- `tool_registry.py`: Central tool metadata registry used by Docker and dataset helpers
+- `utils/dataset_utils.py`: Compatibility facade that re-exports dataset helper functions
 - `make_dockerfiles.py`: Dockerfile generation script
 - `make_dockercompose.py`: Docker Compose configuration generator
-- `run_config.py`: Configuration constants
+- `run_config.py`: Compatibility configuration exports for file types and tool input requirements
 - `utils/clean_outputs.sh`: Reset one dataset/tool results directory before reruns
 - `utils/make_cactus_seqfile.py`: Generate Cactus seqfiles (tree + sample/path mappings) from assembly datasets
 - `utils/make_minigraphcactus_seqfile.py`: Generate seqfiles for Minigraph-Cactus from assembly datasets
@@ -532,9 +537,9 @@ results/
 ## Adding New Tools
 
 1. Add tool configuration to `tools_config.yml`
-2. Define requirements in `run_config.py` (TOOL_REQUIREMENTS, TOOL_INPUT_SPECS)
-3. Add Dockerfile template to `make_dockerfiles.py`
-4. Add service template to `make_dockercompose.py`
+2. Add the tool entry to `tool_registry.py` with source type, compose service metadata, requirements, and input specs
+3. Add the Dockerfile template to `make_dockerfiles.py`
+4. Update any workflow-specific helpers only if the new tool needs custom handling beyond the shared registry
 
 ## Contributing
 
