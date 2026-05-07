@@ -206,6 +206,155 @@ sudo chown $USER:$USER \
 grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/MinigraphCactus/logs/timing.log
 ```
 
+### MC_vg (Parameterized)
+
+```bash
+cd /home/azureuser/constructionBS
+
+# Configuration: change only these variables for the current dataset.
+DATASET="KIR_TEST"
+TOOL_NAME="MC_vg"
+SEQFILE_NAME="kir_test_seqfile.txt"
+REFERENCE_NAME="KIR-GRCh38"
+REFERENCE_FASTA="input_data/KIR_TEST/ASSEMBLIES/KIR-00GRCh38.fa"
+OUT_NAME="result_cactus_new"
+AUTOINDEX_PREFIX="result_autoindex"
+MAX_CORES="16"
+
+RUN_DIR="results/${DATASET}/${TOOL_NAME}"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+SEQFILE_PATH="${RUN_DIR}/${SEQFILE_NAME}"
+ARTIFACTS_DIR="${RUN_DIR}/artifacts"
+
+# Setup
+mkdir -p "${OUTPUT_DIR}" "${LOG_DIR}"
+sudo chown -R $USER:$USER "${RUN_DIR}"
+
+python utils/make_minigraphcactus_seqfile.py "${DATASET}" \
+  --output "${SEQFILE_PATH}"
+
+sed -n '1,20p' "${SEQFILE_PATH}"
+
+# Run cactus-pangenome
+/usr/bin/time -v \
+  -o "${LOG_DIR}/timing_cactus_pangenome.log" -- \
+docker compose run --rm minigraphcactus bash -lc \
+"cactus-pangenome \
+ /${RUN_DIR}/jobstore \
+ /${SEQFILE_PATH} \
+ --outDir /${OUTPUT_DIR} \
+ --outName ${OUT_NAME} \
+ --reference ${REFERENCE_NAME} \
+ --vcf --giraffe --gfa --gbz \
+ --batchSystem single_machine \
+ --maxCores ${MAX_CORES}" \
+> "${LOG_DIR}/execution_cactus_pangenome.log" 2>&1
+
+sudo chown -R $USER:$USER "${RUN_DIR}"
+
+# Quick post-run checks for cactus-pangenome
+tail -n 40 "${LOG_DIR}/execution_cactus_pangenome.log"
+find "${OUTPUT_DIR}" -maxdepth 1 -type f | sort
+
+# Build the reference FASTA for vg autoindex.
+# The FASTA header must match the contig name used in the cactus-produced VCF,
+# so derive it dynamically instead of hardcoding dataset-specific values.
+VCF_CONTIG="$(
+  gzip -dc "${OUTPUT_DIR}/${OUT_NAME}.vcf.gz" \
+  | awk -F'[=,>]' '/^##contig=<ID=/{print $3; exit}'
+)"
+
+awk -v contig="$VCF_CONTIG" 'NR==1{print ">" contig; next} {print}' \
+"${REFERENCE_FASTA}" \
+> "${OUTPUT_DIR}/result_autoindex_ref.fa"
+
+sed -n '1,3p' "${OUTPUT_DIR}/result_autoindex_ref.fa"
+gzip -dc "${OUTPUT_DIR}/${OUT_NAME}.vcf.gz" | sed -n '1,20p'
+
+# Run vg autoindex as a secondary, reference-centric indexing branch.
+/usr/bin/time -v \
+  -o "${LOG_DIR}/timing_vg_autoindex.log" -- \
+docker compose run --rm minigraphcactus bash -lc \
+"vg autoindex \
+ --workflow sr-giraffe \
+ --prefix /${OUTPUT_DIR}/${AUTOINDEX_PREFIX} \
+ --ref-fasta /${OUTPUT_DIR}/result_autoindex_ref.fa \
+ --vcf /${OUTPUT_DIR}/${OUT_NAME}.vcf.gz \
+ --threads ${MAX_CORES}" \
+> "${LOG_DIR}/execution_vg_autoindex.log" 2>&1
+
+sudo chown -R $USER:$USER "${RUN_DIR}"
+
+# Quick post-run checks for vg autoindex
+tail -n 80 "${LOG_DIR}/execution_vg_autoindex.log"
+find "${OUTPUT_DIR}" -maxdepth 1 -type f | sort | rg 'result_autoindex'
+
+# Export the autoindex graph as GFA, then unchop it with vg mod -u.
+# Write to temporary files first so failed commands do not leave misleading
+# final outputs behind.
+docker compose run --rm minigraphcactus bash -lc \
+"vg convert -f \
+ /${OUTPUT_DIR}/${AUTOINDEX_PREFIX}.giraffe.gbz \
+ > /${OUTPUT_DIR}/result_autoindex_c.gfa.tmp"
+mv "${OUTPUT_DIR}/result_autoindex_c.gfa.tmp" \
+  "${OUTPUT_DIR}/result_autoindex_c.gfa"
+
+docker compose run --rm minigraphcactus bash -lc \
+"vg mod -u \
+ /${OUTPUT_DIR}/result_autoindex_c.gfa \
+ > /${OUTPUT_DIR}/result_autoindex.gfa.tmp"
+mv "${OUTPUT_DIR}/result_autoindex.gfa.tmp" \
+  "${OUTPUT_DIR}/result_autoindex.gfa"
+
+sudo chown -R $USER:$USER "${RUN_DIR}"
+
+ls -lh \
+  "${OUTPUT_DIR}/${AUTOINDEX_PREFIX}.giraffe.gbz" \
+  "${OUTPUT_DIR}/result_autoindex_c.gfa" \
+  "${OUTPUT_DIR}/result_autoindex.gfa"
+
+wc -l \
+  "${OUTPUT_DIR}/result_autoindex_c.gfa" \
+  "${OUTPUT_DIR}/result_autoindex.gfa"
+
+sed -n '1,5p' "${OUTPUT_DIR}/result_autoindex.gfa"
+
+# Create an editor-friendly uncompressed copy of the cactus GFA.
+gzip -dc "${OUTPUT_DIR}/${OUT_NAME}.gfa.gz" \
+  > "${OUTPUT_DIR}/${OUT_NAME}.gfa"
+
+# Final organization:
+# - keep the main cactus outputs, primary indices, and the three readable GFAs
+#   in outputs
+# - move diagnostic and secondary files into artifacts
+mkdir -p "${ARTIFACTS_DIR}"
+
+mv \
+  "${OUTPUT_DIR}/${OUT_NAME}.raw.vcf.gz" \
+  "${OUTPUT_DIR}/${OUT_NAME}.raw.vcf.gz.tbi" \
+  "${OUTPUT_DIR}/${OUT_NAME}.full.hal" \
+  "${OUTPUT_DIR}/${OUT_NAME}.gaf.gz" \
+  "${OUTPUT_DIR}/${OUT_NAME}.paf" \
+  "${OUTPUT_DIR}/${OUT_NAME}.paf.unfiltered.gz" \
+  "${OUTPUT_DIR}/${OUT_NAME}.paf.filter.log" \
+  "${OUTPUT_DIR}/${OUT_NAME}.snarls" \
+  "${OUTPUT_DIR}/${OUT_NAME}.stats.tgz" \
+  "${OUTPUT_DIR}/${OUT_NAME}.sv.gfa.gz" \
+  "${OUTPUT_DIR}/${OUT_NAME}.sv.gfa.fa.gz" \
+  "${OUTPUT_DIR}/${OUT_NAME}.d2.gbz" \
+  "${ARTIFACTS_DIR}/"
+
+mv \
+  "${OUTPUT_DIR}/chrom-alignments" \
+  "${OUTPUT_DIR}/chrom-subproblems" \
+  "${ARTIFACTS_DIR}/"
+
+# Final checks
+find "${OUTPUT_DIR}" -maxdepth 1 -type f | sort
+find "${ARTIFACTS_DIR}" -maxdepth 2 | sort
+```
+
 ### Cactus (C4_TEST)
 
 ```bash
