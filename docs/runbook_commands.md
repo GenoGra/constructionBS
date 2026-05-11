@@ -7,7 +7,8 @@ This file collects copy-paste commands used to run graph-construction tools in t
 Conventions:
 - Run from repo root: `/home/azureuser/constructionBS`
 - Standard flow: `clean -> run -> chown -> organize`
-- `execution.log` and `timing.log` are always written under `results/<DATASET>/<TOOL>/logs`
+- `execution.log` and `timing.log` are written either under `results/<DATASET>/<TOOL>/logs` or, for LCPan variants, under `results/<DATASET>/LCPan/<variant>/logs`
+- LCPan variant runs use explicit subdirectories under `results/<DATASET>/LCPan/`: `pggb_vg`, `pggb_vgx`, `mc_vg`, `mc_vgx`
 
 Path and logging policy (always apply):
 - Launch every `docker compose` command from repo root: `/home/azureuser/constructionBS`
@@ -36,10 +37,6 @@ This writes:
 
 ## C4 End-to-End Commands By Tool
 
-This section is intentionally redundant and operational: each tool has one
-complete C4 command block (`clean -> run -> chown -> organize -> optional
-line-encoding conversions -> checks`).
-
 ### Minigraph (C4_TEST)
 
 ```bash
@@ -58,12 +55,9 @@ docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W /re
 sudo chown $USER:$USER \
   results/C4_TEST/Minigraph/outputs/minigraph_C4_with_wlines.gfa \
   results/C4_TEST/Minigraph/outputs/minigraph_C4_with_plines.gfa
-
-# Checks
-grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/Minigraph/logs/timing.log
 ```
 
-### LCPan (C4_TEST)
+### LCPan PGGB vg (C4_TEST)
 
 ```bash
 cd /home/azureuser/constructionBS
@@ -100,23 +94,18 @@ docker compose run --rm pggb bash -lc \
 docker compose run --rm pggb bash -lc \
 "samtools faidx /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
 
-# Required inputs for the actual LCPan run:
-test -f input_data/C4_TEST/GRAPH/c4_reference_pansn.fa
-test -f input_data/C4_TEST/GRAPH/c4_reference_pansn.fa.fai
-test -f input_data/C4_TEST/GRAPH/lcpan_C4.vcf
-
-/usr/bin/time -v -o results/C4_TEST/LCPan/logs/timing.log -- \
-docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/outputs/lcpan_C4.log" \
-> results/C4_TEST/LCPan/logs/execution.log 2>&1
+/usr/bin/time -v -o results/C4_TEST/LCPan/pggb_vg/logs/timing.log -- \
+docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.log" \
+> results/C4_TEST/LCPan/pggb_vg/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/LCPan
-python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/outputs
-# Canonical output: results/C4_TEST/LCPan/outputs/lcpan_C4.gfa
+python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/pggb_vg/outputs
+# Canonical output: results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa
 
 # Optional normalization before vg convert:
 # LCPan can emit orphan L-lines (for example a single `L 0 ...` link in C4_TEST)
 # that `vg convert` rejects. This filter keeps all S/P/W records and only drops
 # links whose endpoints are not present as S-segment IDs.
-mkdir -p results/C4_TEST/LCPan/outputs/artifacts
+mkdir -p results/C4_TEST/LCPan/pggb_vg/outputs/artifacts
 awk '
 /^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
 /^L\t/ { lines[++n] = $0; next }
@@ -128,27 +117,62 @@ END {
     print lines[i]
   }
 }
-' results/C4_TEST/LCPan/outputs/lcpan_C4.gfa \
-> results/C4_TEST/LCPan/outputs/artifacts/lcpan_C4_vg_ready.gfa
+' results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa \
+> results/C4_TEST/LCPan/pggb_vg/outputs/artifacts/lcpan_C4_vg_ready.gfa
 
-# P-lines export from the normalized GFA.
-# Write to a temporary file first so failures do not leave a misleading empty
-# final output behind.
 docker compose run --rm progressivecactus bash -lc \
-"vg convert -g -f -W /results/C4_TEST/LCPan/outputs/artifacts/lcpan_C4_vg_ready.gfa > /results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa.tmp" && \
-mv results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa.tmp \
-  results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa
+"vg convert -g -f -W /results/C4_TEST/LCPan/pggb_vg/outputs/artifacts/lcpan_C4_vg_ready.gfa > /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa.tmp" && \
+mv results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa.tmp \
+  results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa
 
-# W-lines export: keep the original LCPan GFA as the W-lines version because
-# `vg convert` is only needed for the P-lines rewrite.
-cp results/C4_TEST/LCPan/outputs/lcpan_C4.gfa \
-  results/C4_TEST/LCPan/outputs/lcpan_C4_with_wlines.gfa
+cp results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa \
+  results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_wlines.gfa
+```
 
-# Checks
-grep -m 5 -v '^#' input_data/C4_TEST/GRAPH/lcpan_C4.vcf
-grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/LCPan/logs/timing.log
-ls -lh results/C4_TEST/LCPan/outputs/lcpan_C4_with_wlines.gfa \
-  results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa
+### LCPan PGGB vgx (C4_TEST)
+
+```bash
+cd /home/azureuser/constructionBS
+
+# Keep the standard LCPan inputs and write the expanded-graph run
+# to its dedicated `pggb_vgx` folder.
+mkdir -p results/C4_TEST/LCPan/pggb_vgx/{outputs,logs}
+sudo chown -R $USER:$USER results/C4_TEST/LCPan
+
+/usr/bin/time -v -o results/C4_TEST/LCPan/pggb_vgx/logs/timing.log -- \
+docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vgx --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.log" \
+> results/C4_TEST/LCPan/pggb_vgx/logs/execution.log 2>&1
+
+sudo chown -R $USER:$USER results/C4_TEST/LCPan
+
+# Canonical output:
+# - results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.gfa
+
+# Optional normalization before vg convert:
+# The same orphan-link cleanup used for vg mode can be applied here before
+# exporting an alternative P-lines encoding.
+mkdir -p results/C4_TEST/LCPan/pggb_vgx/outputs/artifacts
+awk '
+/^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
+/^L\t/ { lines[++n] = $0; next }
+{ lines[++n] = $0 }
+END {
+  for (i = 1; i <= n; i++) {
+    split(lines[i], f, "\t")
+    if (f[1] == "L" && (!(f[2] in ids) || !(f[4] in ids))) continue
+    print lines[i]
+  }
+}
+' results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.gfa \
+> results/C4_TEST/LCPan/pggb_vgx/outputs/artifacts/lcpan_C4_vg_ready.gfa
+
+docker compose run --rm progressivecactus bash -lc \
+"vg convert -g -f -W /results/C4_TEST/LCPan/pggb_vgx/outputs/artifacts/lcpan_C4_vg_ready.gfa > /results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4_with_plines.gfa.tmp" && \
+mv results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4_with_plines.gfa.tmp \
+  results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4_with_plines.gfa
+
+cp results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.gfa \
+  results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4_with_wlines.gfa
 ```
 
 ### PGGB (C4_TEST)
@@ -173,9 +197,6 @@ sudo chown $USER:$USER \
   results/C4_TEST/PGGB/outputs/pggb_C4.gfa \
   results/C4_TEST/PGGB/outputs/pggb_C4_with_wlines.gfa \
   results/C4_TEST/PGGB/outputs/pggb_C4_with_plines.gfa
-
-# Checks
-grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/PGGB/logs/timing.log
 ```
 
 ### MinigraphCactus (C4_TEST)
@@ -201,9 +222,6 @@ sudo chown $USER:$USER \
   results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
   results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_wlines.gfa \
   results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_plines.gfa
-
-# Checks
-grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/MinigraphCactus/logs/timing.log
 ```
 
 ### MC_vg (Parameterized)
@@ -227,14 +245,11 @@ LOG_DIR="${RUN_DIR}/logs"
 SEQFILE_PATH="${RUN_DIR}/${SEQFILE_NAME}"
 ARTIFACTS_DIR="${RUN_DIR}/artifacts"
 
-# Setup
 mkdir -p "${OUTPUT_DIR}" "${LOG_DIR}"
 sudo chown -R $USER:$USER "${RUN_DIR}"
 
 python utils/make_minigraphcactus_seqfile.py "${DATASET}" \
   --output "${SEQFILE_PATH}"
-
-sed -n '1,20p' "${SEQFILE_PATH}"
 
 # Run cactus-pangenome
 /usr/bin/time -v \
@@ -253,10 +268,6 @@ docker compose run --rm minigraphcactus bash -lc \
 
 sudo chown -R $USER:$USER "${RUN_DIR}"
 
-# Quick post-run checks for cactus-pangenome
-tail -n 40 "${LOG_DIR}/execution_cactus_pangenome.log"
-find "${OUTPUT_DIR}" -maxdepth 1 -type f | sort
-
 # Build the reference FASTA for vg autoindex.
 # The FASTA header must match the contig name used in the cactus-produced VCF,
 # so derive it dynamically instead of hardcoding dataset-specific values.
@@ -268,9 +279,6 @@ VCF_CONTIG="$(
 awk -v contig="$VCF_CONTIG" 'NR==1{print ">" contig; next} {print}' \
 "${REFERENCE_FASTA}" \
 > "${OUTPUT_DIR}/result_autoindex_ref.fa"
-
-sed -n '1,3p' "${OUTPUT_DIR}/result_autoindex_ref.fa"
-gzip -dc "${OUTPUT_DIR}/${OUT_NAME}.vcf.gz" | sed -n '1,20p'
 
 # Run vg autoindex as a secondary, reference-centric indexing branch.
 /usr/bin/time -v \
@@ -285,10 +293,6 @@ docker compose run --rm minigraphcactus bash -lc \
 > "${LOG_DIR}/execution_vg_autoindex.log" 2>&1
 
 sudo chown -R $USER:$USER "${RUN_DIR}"
-
-# Quick post-run checks for vg autoindex
-tail -n 80 "${LOG_DIR}/execution_vg_autoindex.log"
-find "${OUTPUT_DIR}" -maxdepth 1 -type f | sort | rg 'result_autoindex'
 
 # Export the autoindex graph as GFA, then unchop it with vg mod -u.
 # Write to temporary files first so failed commands do not leave misleading
@@ -308,17 +312,6 @@ mv "${OUTPUT_DIR}/result_autoindex.gfa.tmp" \
   "${OUTPUT_DIR}/result_autoindex.gfa"
 
 sudo chown -R $USER:$USER "${RUN_DIR}"
-
-ls -lh \
-  "${OUTPUT_DIR}/${AUTOINDEX_PREFIX}.giraffe.gbz" \
-  "${OUTPUT_DIR}/result_autoindex_c.gfa" \
-  "${OUTPUT_DIR}/result_autoindex.gfa"
-
-wc -l \
-  "${OUTPUT_DIR}/result_autoindex_c.gfa" \
-  "${OUTPUT_DIR}/result_autoindex.gfa"
-
-sed -n '1,5p' "${OUTPUT_DIR}/result_autoindex.gfa"
 
 # Create an editor-friendly uncompressed copy of the cactus GFA.
 gzip -dc "${OUTPUT_DIR}/${OUT_NAME}.gfa.gz" \
@@ -349,10 +342,6 @@ mv \
   "${OUTPUT_DIR}/chrom-alignments" \
   "${OUTPUT_DIR}/chrom-subproblems" \
   "${ARTIFACTS_DIR}/"
-
-# Final checks
-find "${OUTPUT_DIR}" -maxdepth 1 -type f | sort
-find "${ARTIFACTS_DIR}" -maxdepth 2 | sort
 ```
 
 ### Cactus (C4_TEST)
@@ -379,9 +368,6 @@ cp results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
   results/C4_TEST/Cactus/outputs/cactus_C4_with_wlines.gfa
 docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W /results/C4_TEST/Cactus/outputs/cactus_C4.gfa > /results/C4_TEST/Cactus/outputs/cactus_C4_with_plines.gfa"
 sudo chown -R $USER:$USER results/C4_TEST/Cactus
-
-# Checks
-grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/Cactus/logs/timing.log
 ```
 
 ### ProgressiveCactus (C4_TEST)
@@ -407,45 +393,116 @@ docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/
 cp results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_with_wlines.gfa
 docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_with_plines.gfa"
 sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
-
-# Checks
-grep -E 'Elapsed|Maximum resident|User time|System time' results/C4_TEST/ProgressiveCactus/logs/timing.log
 ```
 
-## Stable Docker Paths (Required)
-
-When running conversion or post-processing commands, always target files via
-container-absolute paths under `/results`.
-
-Template:
+### LCPan MC vg/vgx (Parameterized)
 
 ```bash
-docker compose run --rm <service> bash -lc \
-'<command> /results/<DATASET>/<TOOL>/outputs/<input.gfa> > /results/<DATASET>/<TOOL>/outputs/<output.gfa>'
+cd /home/azureuser/constructionBS
+
+# Configuration: change only these variables for the current dataset.
+DATASET="KIR_TEST"
+REFERENCE_FASTA_SOURCE="input_data/${DATASET}/ASSEMBLIES/KIR-00GRCh38.fa"
+CACTUS_VCF_GZ="results/${DATASET}/MC_vg/outputs/result_cactus_new.vcf.gz"
+
+LCPAN_DIR="results/${DATASET}/LCPan"
+MC_VG_RUN_DIR="${LCPAN_DIR}/mc_vg"
+MC_VGX_RUN_DIR="${LCPAN_DIR}/mc_vgx"
+
+REF_FASTA_FOR_LCPAN="${LCPAN_DIR}/inputs/reference_from_cactus.fa"
+VCF_FOR_LCPAN="${LCPAN_DIR}/inputs/variants_from_cactus.vcf"
+
+VG_OUTPUT_DIR="${MC_VG_RUN_DIR}/outputs"
+VG_LOG_DIR="${MC_VG_RUN_DIR}/logs"
+VGX_OUTPUT_DIR="${MC_VGX_RUN_DIR}/outputs"
+VGX_LOG_DIR="${MC_VGX_RUN_DIR}/logs"
+
+mkdir -p \
+  "${LCPAN_DIR}/inputs" \
+  "${VG_OUTPUT_DIR}" \
+  "${VG_LOG_DIR}" \
+  "${VGX_OUTPUT_DIR}" \
+  "${VGX_LOG_DIR}"
+sudo chown -R $USER:$USER "${LCPAN_DIR}"
+
+VCF_CONTIG="$(
+  gzip -dc "${CACTUS_VCF_GZ}" \
+  | awk -F'[=,>]' '/^##contig=<ID=/{print $3; exit}'
+)"
+
+awk -v contig="${VCF_CONTIG}" 'NR==1{print ">" contig; next} {print}' \
+  "${REFERENCE_FASTA_SOURCE}" \
+  > "${REF_FASTA_FOR_LCPAN}"
+
+docker compose run --rm pggb bash -lc \
+"samtools faidx /${REF_FASTA_FOR_LCPAN}"
+
+gzip -dc "${CACTUS_VCF_GZ}" > "${VCF_FOR_LCPAN}"
+
+/usr/bin/time -v -o "${VG_LOG_DIR}/timing.log" -- \
+docker compose run --rm lcpan bash -lc \
+"/lcpan/bin/lcpan -vg --gfa -t 32 \
+ -r /${REF_FASTA_FOR_LCPAN} \
+ -v /${VCF_FOR_LCPAN} \
+ -p /${VG_OUTPUT_DIR}/lcpan_from_cactus \
+ && /lcpan/lcpan-merge.sh /${VG_OUTPUT_DIR}/lcpan_from_cactus.log" \
+> "${VG_LOG_DIR}/execution.log" 2>&1
+
+mkdir -p "${VG_OUTPUT_DIR}/artifacts"
+awk '
+/^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
+/^L\t/ { lines[++n] = $0; next }
+{ lines[++n] = $0 }
+END {
+  for (i = 1; i <= n; i++) {
+    split(lines[i], f, "\t")
+    if (f[1] == "L" && (!(f[2] in ids) || !(f[4] in ids))) continue
+    print lines[i]
+  }
+}
+' "${VG_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
+> "${VG_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa"
+
+docker compose run --rm progressivecactus bash -lc \
+"vg convert -g -f -W /${VG_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa > /${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
+mv "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" \
+  "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa"
+cp "${VG_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
+  "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_wlines.gfa"
+
+/usr/bin/time -v -o "${VGX_LOG_DIR}/timing.log" -- \
+docker compose run --rm lcpan bash -lc \
+"/lcpan/bin/lcpan -vgx --gfa -t 32 \
+ -r /${REF_FASTA_FOR_LCPAN} \
+ -v /${VCF_FOR_LCPAN} \
+ -p /${VGX_OUTPUT_DIR}/lcpan_from_cactus \
+ && /lcpan/lcpan-merge.sh /${VGX_OUTPUT_DIR}/lcpan_from_cactus.log" \
+> "${VGX_LOG_DIR}/execution.log" 2>&1
+
+mkdir -p "${VGX_OUTPUT_DIR}/artifacts"
+awk '
+/^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
+/^L\t/ { lines[++n] = $0; next }
+{ lines[++n] = $0 }
+END {
+  for (i = 1; i <= n; i++) {
+    split(lines[i], f, "\t")
+    if (f[1] == "L" && (!(f[2] in ids) || !(f[4] in ids))) continue
+    print lines[i]
+  }
+}
+' "${VGX_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
+> "${VGX_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa"
+
+docker compose run --rm progressivecactus bash -lc \
+"vg convert -g -f -W /${VGX_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa > /${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
+mv "${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" \
+  "${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa"
+cp "${VGX_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
+  "${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_wlines.gfa"
+
+sudo chown -R $USER:$USER "${LCPAN_DIR}"
 ```
-
-Example (`MinigraphCactus`, C4):
-
-```bash
-docker compose run --rm minigraphcactus bash -lc \
-'vg convert -g -f -W /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa > /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_plines.gfa'
-```
-
-## Quick Troubleshooting
-
-- `FileNotFoundError: no final output matching '*.hal'`:
-  run failed before HAL creation; inspect `results/<DATASET>/Cactus/logs/execution.log`.
-
-- `ProgressiveCactus` rerun fails with `Permission denied`:
-  fix ownership or remove `results/<DATASET>/ProgressiveCactus/outputs/jobstore`
-  before retrying.
-
-- Cactus header errors (`invalid character in fasta header`):
-  regenerate seqfile with:
-  ```bash
-  python utils/make_cactus_seqfile.py <DATASET>
-  ```
-  it rebuilds `ASSEMBLIES_CACTUS_SANITIZED`.
 
 - Permission issues after container runs:
   ```bash

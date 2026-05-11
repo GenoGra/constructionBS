@@ -10,14 +10,32 @@ from pathlib import Path
 import re
 
 
-TOOL_ORDER = [
+STANDARD_TOOL_ORDER = [
     "PGGB",
     "Minigraph",
     "MinigraphCactus",
     "Cactus",
     "ProgressiveCactus",
-    "LCPan",
 ]
+
+LCPAN_GRAPH_CANDIDATES = {
+    "LCPan_PGGB_vg": (
+        "LCPan/pggb_vg/outputs/lcpan_{dataset_short}.gfa",
+        "LCPan/outputs/lcpan_{dataset_short}.gfa",
+    ),
+    "LCPan_PGGB_vgx": (
+        "LCPan/pggb_vgx/outputs/lcpan_{dataset_short}.gfa",
+        "LCPan/outputs_vgx/lcpan_{dataset_short}.gfa",
+    ),
+    "LCPan_MC_vg": (
+        "LCPan/mc_vg/outputs/lcpan_{dataset_short}.gfa",
+        "LCPan/cactus_vcf_test/outputs_vg/lcpan_from_cactus.gfa",
+    ),
+    "LCPan_MC_vgx": (
+        "LCPan/mc_vgx/outputs/lcpan_{dataset_short}.gfa",
+        "LCPan/cactus_vcf_test/outputs_vgx/lcpan_from_cactus.gfa",
+    ),
+}
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_ROOT = REPO_ROOT / "results"
@@ -113,6 +131,23 @@ def find_canonical_graph(dataset_dir: Path, tool: str) -> Path | None:
     return empty_match
 
 
+def find_lcpan_variant_graph(dataset_dir: Path, tool: str) -> Path | None:
+    """
+    Return one explicit LCPan variant graph, supporting both normalized and
+    legacy experiment directory layouts.
+    """
+    dataset_short = dataset_short_name(dataset_dir)
+
+    for pattern in LCPAN_GRAPH_CANDIDATES[tool]:
+        candidate = dataset_dir / pattern.format(dataset_short=dataset_short)
+        if candidate.exists() and not any(
+            candidate.name.endswith(suffix) for suffix in EXCLUDED_SUFFIXES
+        ):
+            return candidate
+
+    return None
+
+
 def count_gfa_records(graph_path: Path) -> tuple[int, int, int, int]:
     """
     Count S/L/P/W records in one GFA file.
@@ -155,12 +190,19 @@ def summarize_graph(tool: str, graph_path: Path) -> GraphSummary:
 def discover_summaries(dataset_name: str) -> list[GraphSummary]:
     """
     Collect graph summaries for the standard tool directories in one dataset.
+    LCPan runs are expanded into explicit input/mode variants when present.
     """
     dataset_dir = RESULTS_ROOT / dataset_name
     summaries: list[GraphSummary] = []
 
-    for tool in TOOL_ORDER:
+    for tool in STANDARD_TOOL_ORDER:
         graph_path = find_canonical_graph(dataset_dir, tool)
+        if graph_path is None:
+            continue
+        summaries.append(summarize_graph(tool, graph_path))
+
+    for tool in LCPAN_GRAPH_CANDIDATES:
+        graph_path = find_lcpan_variant_graph(dataset_dir, tool)
         if graph_path is None:
             continue
         summaries.append(summarize_graph(tool, graph_path))
@@ -187,7 +229,7 @@ def build_table(dataset_name: str, summaries: list[GraphSummary]) -> str:
         lines.append(
             "| "
             f"{summary.tool} | "
-            f"`{summary.graph_path.name}` | "
+            f"`{rel_graph}` | "
             f"{format_size_bytes(summary.file_size_bytes)} | "
             f"{summary.s_count} | "
             f"{summary.l_count} | "
@@ -201,7 +243,8 @@ def build_table(dataset_name: str, summaries: list[GraphSummary]) -> str:
             "Notes:",
             "- Counts are computed from the canonical top-level GFA for each tool.",
             "- Derived `_with_plines.gfa` and `_with_wlines.gfa` files are excluded.",
-            "- File paths used for the summaries live under `results/<DATASET>/<TOOL>/outputs/`.",
+            "- LCPan rows are expanded by input source and mode when matching runs are present.",
+            "- File paths used for the summaries live under `results/<DATASET>/...`.",
         ]
     )
     return "\n".join(lines) + "\n"

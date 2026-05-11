@@ -10,14 +10,32 @@ from pathlib import Path
 import re
 
 
-TOOL_ORDER = [
+STANDARD_TOOL_ORDER = [
     "PGGB",
     "Minigraph",
     "MinigraphCactus",
     "Cactus",
     "ProgressiveCactus",
-    "LCPan",
 ]
+
+LCPAN_TIMING_CANDIDATES = {
+    "LCPan_PGGB_vg": (
+        "LCPan/pggb_vg/logs/timing.log",
+        "LCPan/logs/timing.log",
+    ),
+    "LCPan_PGGB_vgx": (
+        "LCPan/pggb_vgx/logs/timing.log",
+        "LCPan/logs_vgx/timing.log",
+    ),
+    "LCPan_MC_vg": (
+        "LCPan/mc_vg/logs/timing.log",
+        "LCPan/cactus_vcf_test/logs_vg/timing.log",
+    ),
+    "LCPan_MC_vgx": (
+        "LCPan/mc_vgx/logs/timing.log",
+        "LCPan/cactus_vcf_test/logs_vgx/timing.log",
+    ),
+}
 
 ELAPSED_PREFIX = "Elapsed (wall clock) time"
 EXIT_STATUS_PREFIX = "Exit status"
@@ -113,7 +131,7 @@ def build_table(dataset_name: str, summaries: list[TimingSummary]) -> str:
     ]
 
     for summary in summaries:
-        rel_log = summary.timing_log.relative_to(summary.timing_log.parents[3])
+        rel_log = summary.timing_log.relative_to(RESULTS_ROOT)
         lines.append(
             "| "
             f"{summary.tool} | "
@@ -138,13 +156,23 @@ def build_table(dataset_name: str, summaries: list[TimingSummary]) -> str:
 def discover_summaries(dataset_name: str) -> list[TimingSummary]:
     """
     Collect timing summaries for the standard tool directories in one dataset.
+    LCPan runs are expanded into explicit input/mode variants when present.
     """
     dataset_dir = RESULTS_ROOT / dataset_name
     summaries: list[TimingSummary] = []
 
-    for tool in TOOL_ORDER:
+    for tool in STANDARD_TOOL_ORDER:
         timing_log = dataset_dir / tool / "logs" / "timing.log"
         if not timing_log.exists():
+            continue
+        summaries.append(parse_timing_log(timing_log, tool))
+
+    for tool, relative_candidates in LCPAN_TIMING_CANDIDATES.items():
+        timing_log = next(
+            (dataset_dir / candidate for candidate in relative_candidates if (dataset_dir / candidate).exists()),
+            None,
+        )
+        if timing_log is None:
             continue
         summaries.append(parse_timing_log(timing_log, tool))
 
