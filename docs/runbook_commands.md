@@ -34,6 +34,95 @@ python utils/summarize_output_graphs.py C4_TEST
 This writes:
 - `results/<DATASET>/timing_summary.md`
 - `results/<DATASET>/output_summary.md`
+- `results/<DATASET>/pggb_timing_summary.md`
+- `results/<DATASET>/minigraph_timing_summary.md`
+- `results/<DATASET>/lcpan_timing_summary.md`
+
+The extra timing summaries are additive:
+- `timing_summary.md` stays the dataset-wide cross-tool report
+- `pggb_timing_summary.md`, `minigraph_timing_summary.md`, and `lcpan_timing_summary.md` are tool-specific reports for repeated runs, including multithread studies
+
+## Multithread Study Layout
+
+Use dedicated run folders under `threads/` so the canonical outputs of the validated commands stay untouched.
+
+Recommended layout:
+- `results/<DATASET>/PGGB/threads/t8/{logs,outputs}`
+- `results/<DATASET>/Minigraph/threads/t8/{logs,outputs}`
+- `results/<DATASET>/LCPan/pggb_vg/threads/t8/{logs,outputs}`
+- `results/<DATASET>/LCPan/pggb_vgx/threads/t8/{logs,outputs}`
+
+Suggested workflow:
+1. Keep the standard commands below as the reference run.
+2. For multithread experiments, write logs and outputs inside `threads/t<THREADS>/`.
+3. Re-run `python utils/summarize_timing_logs.py <DATASET>` to refresh both the original dataset summary and the new per-tool summaries.
+
+## Multithread Study Commands
+
+### PGGB Multithread Template
+
+```bash
+cd /home/azureuser/constructionBS
+DATASET="C4_TEST"
+THREADS="32"
+INPUT_FASTA="/input_data/${DATASET}/ASSEMBLIES/c4_total.fa"
+RUN_DIR="results/${DATASET}/PGGB/threads/t${THREADS}"
+
+mkdir -p "${RUN_DIR}/outputs" "${RUN_DIR}/logs"
+sudo chown -R $USER:$USER "${RUN_DIR}"
+
+/usr/bin/time -v -o "${RUN_DIR}/logs/timing.log" -- \
+docker compose run --rm pggb bash -lc "pggb -i ${INPUT_FASTA} -n 96 -t ${THREADS} -o /${RUN_DIR}/outputs" \
+> "${RUN_DIR}/logs/execution.log" 2>&1
+
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/summarize_timing_logs.py "${DATASET}"
+```
+
+### Minigraph Multithread Template
+
+```bash
+cd /home/azureuser/constructionBS
+DATASET="C4_TEST"
+THREADS="32"
+INPUT_GLOB="/input_data/${DATASET}/ASSEMBLIES/C4-*.fa"
+OUTPUT_GRAPH="minigraph_C4.gfa"
+RUN_DIR="results/${DATASET}/Minigraph/threads/t${THREADS}"
+
+mkdir -p "${RUN_DIR}/outputs" "${RUN_DIR}/logs"
+sudo chown -R $USER:$USER "${RUN_DIR}"
+
+/usr/bin/time -v -o "${RUN_DIR}/logs/timing.log" -- \
+docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -t ${THREADS} -cxggs ${INPUT_GLOB} > /${RUN_DIR}/outputs/${OUTPUT_GRAPH}" \
+> "${RUN_DIR}/logs/execution.log" 2>&1
+
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/summarize_timing_logs.py "${DATASET}"
+```
+
+### LCPan Multithread Template
+
+```bash
+cd /home/azureuser/constructionBS
+DATASET="C4_TEST"
+THREADS="32"
+VARIANT="pggb_vg"  # or pggb_vgx
+MODE_FLAG="-vg"    # or -vgx
+REFERENCE_FASTA="/input_data/${DATASET}/GRAPH/c4_reference_pansn.fa"
+INPUT_VCF="/input_data/${DATASET}/GRAPH/lcpan_C4.vcf"
+OUTPUT_PREFIX="lcpan_C4"
+RUN_DIR="results/${DATASET}/LCPan/${VARIANT}/threads/t${THREADS}"
+
+mkdir -p "${RUN_DIR}/outputs" "${RUN_DIR}/logs"
+sudo chown -R $USER:$USER "${RUN_DIR}"
+
+/usr/bin/time -v -o "${RUN_DIR}/logs/timing.log" -- \
+docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r ${REFERENCE_FASTA} -v ${INPUT_VCF} -p /${RUN_DIR}/outputs/${OUTPUT_PREFIX} && /lcpan/lcpan-merge.sh /${RUN_DIR}/outputs/${OUTPUT_PREFIX}.log" \
+> "${RUN_DIR}/logs/execution.log" 2>&1
+
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/summarize_timing_logs.py "${DATASET}"
+```
 
 ## C4 End-to-End Commands By Tool
 
@@ -238,6 +327,13 @@ REFERENCE_FASTA="input_data/KIR_TEST/ASSEMBLIES/KIR-00GRCh38.fa"
 OUT_NAME="result_cactus_new"
 AUTOINDEX_PREFIX="result_autoindex"
 MAX_CORES="16"
+
+# C4_TEST note:
+# - use SEQFILE_NAME="c4_test_seqfile.txt"
+# - use REFERENCE_NAME="C4-GRCh38"
+# - use REFERENCE_FASTA="input_data/C4_TEST/ASSEMBLIES_CACTUS_SANITIZED/C4-00GRCh38.fa"
+# The C4_TEST ASSEMBLIES directory can contain placeholder symlinks, while
+# ASSEMBLIES_CACTUS_SANITIZED contains the real FASTA files used by Cactus.
 
 RUN_DIR="results/${DATASET}/${TOOL_NAME}"
 OUTPUT_DIR="${RUN_DIR}/outputs"

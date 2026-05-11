@@ -16,7 +16,8 @@ import argparse
 
 VALID_FASTA_SUFFIXES = {".fa", ".fasta", ".fna"}
 IGNORED_SUFFIXES = {".fai"}
-IGNORED_STEMS = {"c4_total", "mhc_total"}
+IGNORED_STEMS = {"c4_total", "mhc_total", "c4_queries", "c4_reference"}
+SANITIZED_DIRNAME = "ASSEMBLIES_CACTUS_SANITIZED"
 
 
 def normalize_sample_name(fasta_path: Path) -> str:
@@ -46,6 +47,26 @@ def find_fasta_files(assemblies_dir: Path) -> list[Path]:
     return fasta_files
 
 
+def resolve_assemblies_dir(repo_root: Path, dataset_name: str) -> Path:
+    """
+    Prefer ASSEMBLIES when it contains a usable set of FASTA files, otherwise
+    fall back to ASSEMBLIES_CACTUS_SANITIZED.
+    """
+    assemblies_dir = repo_root / "input_data" / dataset_name / "ASSEMBLIES"
+    if not assemblies_dir.is_dir():
+        raise FileNotFoundError(f"assemblies directory not found: {assemblies_dir}")
+
+    fasta_files = find_fasta_files(assemblies_dir)
+    if len(fasta_files) >= 2:
+        return assemblies_dir
+
+    sanitized_dir = repo_root / "input_data" / dataset_name / SANITIZED_DIRNAME
+    if sanitized_dir.is_dir() and len(find_fasta_files(sanitized_dir)) >= 2:
+        return sanitized_dir
+
+    return assemblies_dir
+
+
 def to_container_path(repo_root: Path, host_path: Path) -> str:
     """
     Convert one host path under input_data/ to the path visible in containers.
@@ -59,10 +80,7 @@ def build_seqfile_lines(repo_root: Path, dataset_name: str) -> list[str]:
     """
     Build seqfile lines for one dataset.
     """
-    assemblies_dir = repo_root / "input_data" / dataset_name / "ASSEMBLIES"
-    if not assemblies_dir.is_dir():
-        raise FileNotFoundError(f"assemblies directory not found: {assemblies_dir}")
-
+    assemblies_dir = resolve_assemblies_dir(repo_root, dataset_name)
     fasta_files = find_fasta_files(assemblies_dir)
     if not fasta_files:
         raise FileNotFoundError(f"no FASTA files found in {assemblies_dir}")
