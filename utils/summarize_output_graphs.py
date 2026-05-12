@@ -14,6 +14,7 @@ STANDARD_TOOL_ORDER = [
     "PGGB",
     "Minigraph",
     "MinigraphCactus",
+    "MC_vg",
     "Cactus",
     "ProgressiveCactus",
 ]
@@ -27,11 +28,11 @@ LCPAN_GRAPH_CANDIDATES = {
         "LCPan/pggb_vgx/outputs/lcpan_{dataset_short}.gfa",
         "LCPan/outputs_vgx/lcpan_{dataset_short}.gfa",
     ),
-    "LCPan_MC_vg": (
+    "LCPan_from_MC_vg": (
         "LCPan/mc_vg/outputs/lcpan_{dataset_short}.gfa",
         "LCPan/cactus_vcf_test/outputs_vg/lcpan_from_cactus.gfa",
     ),
-    "LCPan_MC_vgx": (
+    "LCPan_from_MC_vgx": (
         "LCPan/mc_vgx/outputs/lcpan_{dataset_short}.gfa",
         "LCPan/cactus_vcf_test/outputs_vgx/lcpan_from_cactus.gfa",
     ),
@@ -47,6 +48,7 @@ CANONICAL_GRAPH_PATTERNS = {
         "outputs/minigraphcactus_{dataset_short}.gfa",
         "outputs/minigraphcactus_graph.gfa",
     ),
+    "MC_vg": ("outputs/result_cactus_new.gfa",),
     "Cactus": (
         "outputs/cactus_{dataset_short}.gfa",
         "outputs/cactus_alignment.gfa",
@@ -241,9 +243,11 @@ def build_table(dataset_name: str, summaries: list[GraphSummary]) -> str:
         [
             "",
             "Notes:",
+            "- `MC_vg` is tracked as a standalone tool; `LCPan_from_MC_vg` and `LCPan_from_MC_vgx` are downstream LCPan variants.",
             "- Counts are computed from the canonical top-level GFA for each tool.",
             "- Derived `_with_plines.gfa` and `_with_wlines.gfa` files are excluded.",
             "- LCPan rows are expanded by input source and mode when matching runs are present.",
+            "- Within LCPan, `pggb_vg` is the standard top-level branch and `pggb_vgx` is its expanded-graph sibling branch.",
             "- File paths used for the summaries live under `results/<DATASET>/...`.",
         ]
     )

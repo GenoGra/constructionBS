@@ -14,6 +14,7 @@ STANDARD_TOOL_ORDER = [
     "PGGB",
     "Minigraph",
     "MinigraphCactus",
+    "MC_vg",
     "Cactus",
     "ProgressiveCactus",
 ]
@@ -27,11 +28,11 @@ LCPAN_TIMING_CANDIDATES = {
         "LCPan/pggb_vgx/logs/timing.log",
         "LCPan/logs_vgx/timing.log",
     ),
-    "LCPan_MC_vg": (
+    "LCPan_from_MC_vg": (
         "LCPan/mc_vg/logs/timing.log",
         "LCPan/cactus_vcf_test/logs_vg/timing.log",
     ),
-    "LCPan_MC_vgx": (
+    "LCPan_from_MC_vgx": (
         "LCPan/mc_vgx/logs/timing.log",
         "LCPan/cactus_vcf_test/logs_vgx/timing.log",
     ),
@@ -40,7 +41,7 @@ LCPAN_TIMING_CANDIDATES = {
 TOOL_TIMING_SUMMARY_CONFIG = (
     ("PGGB", "pggb_timing_summary.md", "PGGB", ()),
     ("Minigraph", "minigraph_timing_summary.md", "Minigraph", ()),
-    ("LCPan", "lcpan_timing_summary.md", "LCPan", ("pggb_vg", "pggb_vgx", "mc_vg", "mc_vgx")),
+    ("LCPan", "lcpan_timing_summary.md", "LCPan", ("pggb_vg", "pggb_vgx", "from_MC_vg", "from_MC_vgx")),
 )
 
 LCPAN_TOOL_SUMMARY_CANDIDATES = {
@@ -52,11 +53,11 @@ LCPAN_TOOL_SUMMARY_CANDIDATES = {
         "LCPan/pggb_vgx/logs/timing.log",
         "LCPan/logs_vgx/timing.log",
     ),
-    "mc_vg": (
+    "from_MC_vg": (
         "LCPan/mc_vg/logs/timing.log",
         "LCPan/cactus_vcf_test/logs_vg/timing.log",
     ),
-    "mc_vgx": (
+    "from_MC_vgx": (
         "LCPan/mc_vgx/logs/timing.log",
         "LCPan/cactus_vcf_test/logs_vgx/timing.log",
     ),
@@ -76,6 +77,13 @@ ELAPSED_PREFIX = "Elapsed (wall clock) time"
 EXIT_STATUS_PREFIX = "Exit status"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_ROOT = REPO_ROOT / "results"
+
+TOOL_TIMING_LOG_CANDIDATES = {
+    "MC_vg": (
+        "MC_vg/logs/timing.log",
+        "MC_vg/logs/timing_cactus_pangenome.log",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -234,6 +242,7 @@ def build_table(dataset_name: str, summaries: list[TimingSummary]) -> str:
             "- `Elapsed` is the main metric to compare end-to-end runtime.",
             "- `Exit status` confirms whether the run completed successfully.",
             "- CPU and RAM fields from these Docker-wrapped logs are not reliable for cross-tool comparisons.",
+            "- `MC_vg` is tracked as a standalone tool; `LCPan_from_MC_vg` and `LCPan_from_MC_vgx` are downstream LCPan variants.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -248,8 +257,15 @@ def discover_summaries(dataset_name: str) -> list[TimingSummary]:
     summaries: list[TimingSummary] = []
 
     for tool in STANDARD_TOOL_ORDER:
-        timing_log = dataset_dir / tool / "logs" / "timing.log"
-        if not timing_log.exists():
+        timing_log = next(
+            (
+                dataset_dir / relative_path
+                for relative_path in TOOL_TIMING_LOG_CANDIDATES.get(tool, (f"{tool}/logs/timing.log",))
+                if (dataset_dir / relative_path).exists()
+            ),
+            None,
+        )
+        if timing_log is None:
             continue
         summaries.append(parse_timing_log(timing_log, tool))
 

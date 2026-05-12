@@ -341,20 +341,22 @@ docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/
 docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
 
 ./utils/clean_outputs.sh C4_TEST LCPan
-/usr/bin/time -v -o results/C4_TEST/LCPan/logs/timing.log docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/outputs/lcpan_C4.log" > results/C4_TEST/LCPan/logs/execution.log 2>&1
+/usr/bin/time -v -o results/C4_TEST/LCPan/pggb_vg/logs/timing.log docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.log" > results/C4_TEST/LCPan/pggb_vg/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/LCPan
-python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/outputs
+python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/pggb_vg/outputs
 ```
 
 This produces:
-- `results/C4_TEST/LCPan/outputs/lcpan_C4.gfa`
-- optional `results/C4_TEST/LCPan/outputs/lcpan_C4_with_wlines.gfa`
-- optional `results/C4_TEST/LCPan/outputs/lcpan_C4_with_plines.gfa`
-- `results/C4_TEST/LCPan/outputs/artifacts/`
-- `results/C4_TEST/LCPan/logs/execution.log`
-- `results/C4_TEST/LCPan/logs/timing.log`
+- `results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa`
+- optional `results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_wlines.gfa`
+- optional `results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa`
+- `results/C4_TEST/LCPan/pggb_vg/outputs/artifacts/`
+- `results/C4_TEST/LCPan/pggb_vg/logs/execution.log`
+- `results/C4_TEST/LCPan/pggb_vg/logs/timing.log`
 
 Notes:
+- `pggb_vg` is the standard top-level LCPan branch; `pggb_vgx` is its expanded-graph sibling branch
+- `from_MC_vg` and `from_MC_vgx` are downstream LCPan branches built from `MC_vg` outputs (`results/<DATASET>/LCPan/mc_vg` and `results/<DATASET>/LCPan/mc_vgx`)
 - helper files used only to make `vg convert` succeed, such as `lcpan_*_vg_ready.gfa` or `lcpan_*_vgfixed.gfa`, belong under `outputs/artifacts/` instead of the top level
 
 For `MinigraphCactus`, use the Cactus container with a generated seqfile and

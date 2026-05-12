@@ -9,6 +9,10 @@ Conventions:
 - Standard flow: `clean -> run -> chown -> organize`
 - `execution.log` and `timing.log` are written either under `results/<DATASET>/<TOOL>/logs` or, for LCPan variants, under `results/<DATASET>/LCPan/<variant>/logs`
 - LCPan variant runs use explicit subdirectories under `results/<DATASET>/LCPan/`: `pggb_vg`, `pggb_vgx`, `mc_vg`, `mc_vgx`
+- `MC_vg` is a standalone tool under `results/<DATASET>/MC_vg`
+- `results/<DATASET>/LCPan/mc_vg` and `results/<DATASET>/LCPan/mc_vgx` are downstream LCPan variants built from `MC_vg` outputs, not aliases of the `MC_vg` tool itself
+- In prose and summaries, prefer the clearer labels `from_MC_vg` and `from_MC_vgx` for those two branches.
+- Within LCPan, `pggb_vg` is the standard top-level branch, `pggb_vgx` is its expanded-graph sibling branch, and `from_MC_vg` / `from_MC_vgx` are downstream LCPan branches built from `MC_vg` outputs
 
 Path and logging policy (always apply):
 - Launch every `docker compose` command from repo root: `/home/azureuser/constructionBS`
@@ -37,6 +41,12 @@ This writes:
 - `results/<DATASET>/pggb_timing_summary.md`
 - `results/<DATASET>/minigraph_timing_summary.md`
 - `results/<DATASET>/lcpan_timing_summary.md`
+
+Canonical-output rule:
+- The only canonical graph outputs for cross-tool comparisons and `output_summary.md` are the primary `.gfa` files produced by each validated run.
+- Derived files such as `_with_plines.gfa`, `_with_wlines.gfa`, temporary files, normalization artifacts, and conversion byproducts are support artifacts only.
+- Timing summaries may still mention repeated runs or variants, but that does not promote their derived files to canonical dataset outputs.
+- For LCPan specifically, branch names such as `pggb_vg`, `pggb_vgx`, `from_MC_vg`, and `from_MC_vgx` identify variants of the same tool, not separate top-level tools.
 
 The extra timing summaries are additive:
 - `timing_summary.md` stays the dataset-wide cross-tool report
@@ -268,11 +278,12 @@ cp results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.gfa \
 
 ```bash
 cd /home/azureuser/constructionBS
+THREADS="${THREADS:-16}"
 ./utils/clean_outputs.sh C4_TEST PGGB
 cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/ASSEMBLIES/c4_total.fa
 docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/ASSEMBLIES/c4_total.fa"
 /usr/bin/time -v -o results/C4_TEST/PGGB/logs/timing.log -- \
-docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/ASSEMBLIES/c4_total.fa -n 96 -o /results/C4_TEST/PGGB/outputs" \
+docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/ASSEMBLIES/c4_total.fa -n 96 -t ${THREADS} -o /results/C4_TEST/PGGB/outputs" \
 > results/C4_TEST/PGGB/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/PGGB
 python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
