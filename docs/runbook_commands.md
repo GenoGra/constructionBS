@@ -589,8 +589,13 @@ END {
 
 docker compose run --rm progressivecactus bash -lc \
 "vg convert -g -f -W /${VG_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa > /${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
-mv "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" \
-  "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa"
+if [ -s "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" ]; then
+  mv "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" \
+    "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa"
+else
+  rm -f "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
+  echo "[WARN] Skipping lcpan_from_cactus_with_plines.gfa for from_MC_vg; vg convert -W may exceed available RAM on larger graphs." >&2
+fi
 cp "${VG_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
   "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_wlines.gfa"
 
@@ -627,6 +632,10 @@ cp "${VGX_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
 
 sudo chown -R $USER:$USER "${LCPAN_DIR}"
 ```
+
+For `LCPan/from_MC_vg`, treat `lcpan_from_cactus_with_plines.gfa` as optional.
+If `vg convert -W` is OOM-killed on larger graphs, keep the canonical GFA plus
+`lcpan_from_cactus_with_wlines.gfa` and consider the run valid.
 
 - Permission issues after container runs:
   ```bash
