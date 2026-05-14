@@ -21,6 +21,11 @@ import argparse
 import gzip
 import shutil
 
+try:
+    from utils.dataset_metadata import get_dataset_short_name
+except ModuleNotFoundError:
+    from dataset_metadata import get_dataset_short_name
+
 
 ARTIFACTS_DIRNAME = "artifacts"
 
@@ -97,10 +102,23 @@ TOOL_SPECS = {
 
 def infer_dataset_name(outputs_dir: Path) -> str:
     """
-    Infer the dataset name from results/<dataset>/<tool>/outputs.
+    Infer the dataset name from any supported results/<dataset>/.../outputs path.
     """
+    resolved_output_dir = outputs_dir.resolve()
+    parts = resolved_output_dir.parts
+
+    for index, part in enumerate(parts):
+        if part != "results":
+            continue
+        if index + 1 >= len(parts):
+            break
+
+        dataset_name = parts[index + 1]
+        if dataset_name:
+            return dataset_name
+
     try:
-        dataset_name = outputs_dir.resolve().parents[1].name
+        dataset_name = resolved_output_dir.parents[1].name
     except IndexError as error:
         raise RuntimeError(
             f"unable to infer dataset name from output directory: {outputs_dir}"
@@ -109,15 +127,6 @@ def infer_dataset_name(outputs_dir: Path) -> str:
     if not dataset_name:
         raise RuntimeError(f"empty dataset name inferred from output directory: {outputs_dir}")
 
-    return dataset_name
-
-
-def infer_dataset_short(dataset_name: str) -> str:
-    """
-    Convert one dataset name into its canonical short token.
-    """
-    if dataset_name.endswith("_TEST"):
-        return dataset_name[: -len("_TEST")]
     return dataset_name
 
 
@@ -181,12 +190,16 @@ def write_compressed_copy(source_gfa: Path, target_gz: Path) -> None:
 
 def reset_artifacts_dir(outputs_dir: Path) -> Path:
     """
-    Recreate artifacts/ from scratch.
+    Recreate artifacts/ from scratch while preserving a previous copy for merges.
     """
     artifacts_dir = outputs_dir / ARTIFACTS_DIRNAME
+    previous_artifacts_dir = outputs_dir / f".{ARTIFACTS_DIRNAME}_previous"
+
+    if previous_artifacts_dir.exists():
+        shutil.rmtree(previous_artifacts_dir)
 
     if artifacts_dir.exists():
-        shutil.rmtree(artifacts_dir)
+        artifacts_dir.rename(previous_artifacts_dir)
 
     artifacts_dir.mkdir()
     return artifacts_dir
@@ -225,6 +238,36 @@ def find_primary_source(
     for candidate in canonical_candidates:
         if candidate.exists():
             return candidate
+
+    artifacts_dir = outputs_dir / ARTIFACTS_DIRNAME
+    if artifacts_dir.exists():
+        artifact_matches = sorted(
+            path
+            for path in artifacts_dir.glob(spec.final_output_pattern)
+            if not any(path.name.endswith(suffix) for suffix in spec.exclude_suffixes)
+        )
+
+        if len(artifact_matches) > 1:
+            preferred_artifact_names = [canonical_output_name]
+            if canonical_output_gz_name is not None:
+                preferred_artifact_names.insert(0, canonical_output_gz_name)
+
+            for preferred_name in preferred_artifact_names:
+                for match in artifact_matches:
+                    if match.name == preferred_name:
+                        return match
+
+        if len(artifact_matches) == 1:
+            return artifact_matches[0]
+
+        artifact_canonical_candidates = []
+        if canonical_output_gz_name is not None:
+            artifact_canonical_candidates.append(artifacts_dir / canonical_output_gz_name)
+        artifact_canonical_candidates.append(artifacts_dir / canonical_output_name)
+
+        for candidate in artifact_canonical_candidates:
+            if candidate.exists():
+                return candidate
 
     raise FileNotFoundError(
         f"no final output matching '{spec.final_output_pattern}' found in {outputs_dir}"
@@ -293,14 +336,18 @@ def move_raw_artifacts(
     canonical_output_name: str,
     canonical_output_gz_name: str | None,
     artifacts_dir: Path,
+    protected_names: set[str] | None = None,
 ) -> None:
     """
     Move original workflow artifacts into artifacts/.
     """
-    protected_names = {
+    protected_names = set(protected_names or ())
+    protected_names.update(
+        {
         ARTIFACTS_DIRNAME,
         canonical_output_name,
-    }
+        }
+    )
 
     if canonical_output_gz_name is not None:
         protected_names.add(canonical_output_gz_name)
@@ -309,6 +356,23 @@ def move_raw_artifacts(
         if path.name in protected_names:
             continue
         shutil.move(str(path), artifacts_dir / path.name)
+
+
+def restore_previous_artifacts(outputs_dir: Path, artifacts_dir: Path) -> None:
+    """
+    Merge artifacts from the previous normalization pass without overwriting new files.
+    """
+    previous_artifacts_dir = outputs_dir / f".{ARTIFACTS_DIRNAME}_previous"
+    if not previous_artifacts_dir.exists():
+        return
+
+    for path in sorted(previous_artifacts_dir.iterdir()):
+        target = artifacts_dir / path.name
+        if target.exists():
+            continue
+        shutil.move(str(path), target)
+
+    shutil.rmtree(previous_artifacts_dir)
 
 
 def organize_outputs(
@@ -329,7 +393,9 @@ def organize_outputs(
 
     spec = TOOL_SPECS[tool]
     dataset_name = infer_dataset_name(outputs_dir)
-    resolved_dataset_short = dataset_short or infer_dataset_short(dataset_name)
+    dataset_path = Path("input_data") / dataset_name
+    inferred_dataset_short = get_dataset_short_name(dataset_path)
+    resolved_dataset_short = dataset_short or inferred_dataset_short
     canonical_base_name, canonical_output_name, canonical_output_gz_name = build_canonical_names(
         spec,
         resolved_dataset_short,
@@ -341,6 +407,9 @@ def organize_outputs(
         canonical_output_name,
         canonical_output_gz_name,
     )
+    previous_artifacts_dir = outputs_dir / f".{ARTIFACTS_DIRNAME}_previous"
+    final_output_was_in_artifacts = final_output.parent == outputs_dir / ARTIFACTS_DIRNAME
+
     artifacts_dir = reset_artifacts_dir(outputs_dir)
     remove_existing_canonical_files(
         outputs_dir,
@@ -353,10 +422,14 @@ def organize_outputs(
         canonical_output_name,
         canonical_output_gz_name,
         artifacts_dir,
+        protected_names={previous_artifacts_dir.name},
     )
 
-    moved_final_output = artifacts_dir / final_output.name
-    source_final_output = moved_final_output if moved_final_output.exists() else final_output
+    if final_output_was_in_artifacts:
+        source_final_output = previous_artifacts_dir / final_output.name
+    else:
+        moved_final_output = artifacts_dir / final_output.name
+        source_final_output = moved_final_output if moved_final_output.exists() else final_output
     created_paths: list[Path] = []
 
     canonical_output = outputs_dir / canonical_output_name
@@ -389,6 +462,7 @@ def organize_outputs(
             canonical_base_name,
         )
     )
+    restore_previous_artifacts(outputs_dir, artifacts_dir)
     created_paths.append(artifacts_dir)
     return created_paths
 
@@ -411,7 +485,8 @@ def main() -> None:
         default=None,
         help=(
             "Override the dataset short token used in canonical output names "
-            "(default: infer from results/<dataset>/... and strip trailing _TEST)"
+            "(default: prefer input_data/<dataset>/META/dataset_info.yml:dataset_short, "
+            "otherwise infer from results/<dataset>/... and strip trailing _TEST)"
         ),
     )
 

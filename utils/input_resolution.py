@@ -10,6 +10,53 @@ import fnmatch
 
 from run_config import TOOL_INPUT_SPECS
 from utils.dataset_common import DatasetReport, DirectoryFileCheck, ToolInputs, VALID_INPUT_MODES
+from utils.dataset_metadata import get_metadata_value
+
+
+def _resolve_override_path(dataset_path: Path, configured_path: Any) -> str | None:
+    """
+    Resolve one optional metadata-provided file path relative to the dataset root.
+    """
+    if not isinstance(configured_path, str):
+        return None
+
+    cleaned = configured_path.strip()
+    if not cleaned:
+        return None
+
+    candidate = Path(cleaned)
+    if not candidate.is_absolute():
+        candidate = dataset_path / candidate
+
+    if not candidate.exists() or not candidate.is_file():
+        return None
+
+    return str(candidate)
+
+
+def _resolve_lcpan_metadata_inputs(dataset_report: DatasetReport) -> dict[str, str]:
+    """
+    Resolve optional LCPan input overrides from dataset metadata.
+    """
+    dataset_path = Path(dataset_report["dataset_path"])
+    metadata = dataset_report.get("metadata_info", {}).get("metadata", {})
+
+    resolved_inputs: dict[str, str] = {}
+    reference_override = _resolve_override_path(
+        dataset_path,
+        get_metadata_value(metadata, "lcpan.reference_fasta"),
+    )
+    if reference_override is not None:
+        resolved_inputs["reference"] = reference_override
+
+    variants_override = _resolve_override_path(
+        dataset_path,
+        get_metadata_value(metadata, "lcpan.variants_vcf"),
+    )
+    if variants_override is not None:
+        resolved_inputs["variants"] = variants_override
+
+    return resolved_inputs
 
 
 def _resolve_input_spec(
@@ -86,8 +133,13 @@ def get_tool_inputs(tool_name: str, dataset_report: DatasetReport) -> ToolInputs
         return result
 
     file_checks = dataset_report.get("file_checks", {})
+    metadata_overrides = _resolve_lcpan_metadata_inputs(dataset_report) if tool_name == "LCPan" else {}
 
     for input_key, spec in specs.items():
+        if input_key in metadata_overrides:
+            result["inputs"][input_key] = metadata_overrides[input_key]
+            continue
+
         resolved, value, error_reason = _resolve_input_spec(input_key, spec, file_checks)
 
         if resolved:
