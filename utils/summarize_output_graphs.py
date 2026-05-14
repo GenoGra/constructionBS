@@ -9,6 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
+try:
+    from utils.dataset_metadata import get_dataset_short_name
+except ModuleNotFoundError:
+    from dataset_metadata import get_dataset_short_name
+
 
 STANDARD_TOOL_ORDER = [
     "PGGB",
@@ -20,19 +25,19 @@ STANDARD_TOOL_ORDER = [
 ]
 
 LCPAN_GRAPH_CANDIDATES = {
-    "LCPan_PGGB_vg": (
+    "pggb_vg": (
         "LCPan/pggb_vg/outputs/lcpan_{dataset_short}.gfa",
         "LCPan/outputs/lcpan_{dataset_short}.gfa",
     ),
-    "LCPan_PGGB_vgx": (
+    "pggb_vgx": (
         "LCPan/pggb_vgx/outputs/lcpan_{dataset_short}.gfa",
         "LCPan/outputs_vgx/lcpan_{dataset_short}.gfa",
     ),
-    "LCPan_from_MC_vg": (
+    "from_MC_vg": (
         "LCPan/mc_vg/outputs/lcpan_{dataset_short}.gfa",
         "LCPan/cactus_vcf_test/outputs_vg/lcpan_from_cactus.gfa",
     ),
-    "LCPan_from_MC_vgx": (
+    "from_MC_vgx": (
         "LCPan/mc_vgx/outputs/lcpan_{dataset_short}.gfa",
         "LCPan/cactus_vcf_test/outputs_vgx/lcpan_from_cactus.gfa",
     ),
@@ -92,9 +97,10 @@ def format_size_bytes(value: int) -> str:
 
 def dataset_short_name(dataset_dir: Path) -> str:
     """
-    Convert a dataset directory name like MHC_TEST into MHC.
+    Resolve the dataset short token, preferring the optional metadata override.
     """
-    return re.sub(r"_TEST$", "", dataset_dir.name)
+    input_dataset_dir = REPO_ROOT / "input_data" / dataset_dir.name
+    return get_dataset_short_name(input_dataset_dir)
 
 
 def find_canonical_graph(dataset_dir: Path, tool: str) -> Path | None:
@@ -243,7 +249,7 @@ def build_table(dataset_name: str, summaries: list[GraphSummary]) -> str:
         [
             "",
             "Notes:",
-            "- `MC_vg` is tracked as a standalone tool; `LCPan_from_MC_vg` and `LCPan_from_MC_vgx` are downstream LCPan variants.",
+            "- `MC_vg` is tracked as a standalone tool; `from_MC_vg` and `from_MC_vgx` are downstream LCPan variants.",
             "- Counts are computed from the canonical top-level GFA for each tool.",
             "- Derived `_with_plines.gfa` and `_with_wlines.gfa` files are excluded.",
             "- LCPan rows are expanded by input source and mode when matching runs are present.",

@@ -20,19 +20,19 @@ STANDARD_TOOL_ORDER = [
 ]
 
 LCPAN_TIMING_CANDIDATES = {
-    "LCPan_PGGB_vg": (
+    "pggb_vg": (
         "LCPan/pggb_vg/logs/timing.log",
         "LCPan/logs/timing.log",
     ),
-    "LCPan_PGGB_vgx": (
+    "pggb_vgx": (
         "LCPan/pggb_vgx/logs/timing.log",
         "LCPan/logs_vgx/timing.log",
     ),
-    "LCPan_from_MC_vg": (
+    "from_MC_vg": (
         "LCPan/mc_vg/logs/timing.log",
         "LCPan/cactus_vcf_test/logs_vg/timing.log",
     ),
-    "LCPan_from_MC_vgx": (
+    "from_MC_vgx": (
         "LCPan/mc_vgx/logs/timing.log",
         "LCPan/cactus_vcf_test/logs_vgx/timing.log",
     ),
@@ -242,7 +242,7 @@ def build_table(dataset_name: str, summaries: list[TimingSummary]) -> str:
             "- `Elapsed` is the main metric to compare end-to-end runtime.",
             "- `Exit status` confirms whether the run completed successfully.",
             "- CPU and RAM fields from these Docker-wrapped logs are not reliable for cross-tool comparisons.",
-            "- `MC_vg` is tracked as a standalone tool; `LCPan_from_MC_vg` and `LCPan_from_MC_vgx` are downstream LCPan variants.",
+            "- `MC_vg` is tracked as a standalone tool; `from_MC_vg` and `from_MC_vgx` are downstream LCPan variants.",
         ]
     )
     return "\n".join(lines) + "\n"

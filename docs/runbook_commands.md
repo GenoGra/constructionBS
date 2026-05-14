@@ -9,6 +9,7 @@ Conventions:
 - Standard flow: `clean -> run -> chown -> organize`
 - `execution.log` and `timing.log` are written either under `results/<DATASET>/<TOOL>/logs` or, for LCPan variants, under `results/<DATASET>/LCPan/<variant>/logs`
 - LCPan variant runs use explicit subdirectories under `results/<DATASET>/LCPan/`: `pggb_vg`, `pggb_vgx`, `mc_vg`, `mc_vgx`
+- In summaries and prose, use branch names `pggb_vg`, `pggb_vgx`, `from_MC_vg`, `from_MC_vgx` (where `from_MC_vg -> mc_vg` path and `from_MC_vgx -> mc_vgx` path)
 - `MC_vg` is a standalone tool under `results/<DATASET>/MC_vg`
 - `results/<DATASET>/LCPan/mc_vg` and `results/<DATASET>/LCPan/mc_vgx` are downstream LCPan variants built from `MC_vg` outputs, not aliases of the `MC_vg` tool itself
 - In prose and summaries, prefer the clearer labels `from_MC_vg` and `from_MC_vgx` for those two branches.
@@ -19,6 +20,16 @@ Path and logging policy (always apply):
 - Inside containers, use only absolute mounted paths (`/results/...`, `/input_data/...`)
 - Never use relative container paths for graph files (for example `minigraphcactus_C4.gfa`)
 - Use `/usr/bin/time -v -o ... -- docker compose ...` for all tools to keep `timing.log` format uniform
+
+Optional metadata overrides (safe, opt-in only):
+- Existing validated workflows do not need any metadata changes.
+- For future datasets that should not depend on historical naming, `input_data/<DATASET>/META/dataset_info.yml` may define:
+  - `dataset_short`
+  - `lcpan.reference_fasta`
+  - `lcpan.variants_vcf`
+  - `reference_name`
+- These keys only act as overrides when present; if absent, all current commands and fallbacks remain unchanged.
+- Keep override targets inside `input_data/<DATASET>/...`; this preserves the current structure checks, mounted paths, and rerun behavior.
 
 ## Common Setup
 
@@ -47,6 +58,7 @@ Canonical-output rule:
 - Derived files such as `_with_plines.gfa`, `_with_wlines.gfa`, temporary files, normalization artifacts, and conversion byproducts are support artifacts only.
 - Timing summaries may still mention repeated runs or variants, but that does not promote their derived files to canonical dataset outputs.
 - For LCPan specifically, branch names such as `pggb_vg`, `pggb_vgx`, `from_MC_vg`, and `from_MC_vgx` identify variants of the same tool, not separate top-level tools.
+- `organize_outputs.py` and `summarize_output_graphs.py` prefer `dataset_short` from metadata when available; otherwise they keep the legacy `_TEST -> short token` fallback.
 
 The extra timing summaries are additive:
 - `timing_summary.md` stays the dataset-wide cross-tool report
@@ -66,6 +78,11 @@ Suggested workflow:
 1. Keep the standard commands below as the reference run.
 2. For multithread experiments, write logs and outputs inside `threads/t<THREADS>/`.
 3. Re-run `python utils/summarize_timing_logs.py <DATASET>` to refresh both the original dataset summary and the new per-tool summaries.
+
+Current validation status (2026-05-12):
+- `PGGB`: validated in practice; thread studies exist in `results/C4_TEST/PGGB/threads/`, `results/KIR_TEST/PGGB/threads/`, and `results/MHC_TEST/PGGB/threads/`.
+- `Minigraph`: not yet validated as a multithread workflow; current `C4_TEST` thread runs exit with status `1` and `failed to load the graph from file '/input_data/C4_TEST/ASSEMBLIES/C4-00GRCh38.fa'`.
+- `LCPan`: template prepared, but no validated `threads/` study is documented yet.
 
 ## Multithread Study Commands
 
@@ -89,7 +106,7 @@ sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/summarize_timing_logs.py "${DATASET}"
 ```
 
-### Minigraph Multithread Template
+### Minigraph Multithread Template (Unvalidated)
 
 ```bash
 cd /home/azureuser/constructionBS
@@ -103,7 +120,7 @@ mkdir -p "${RUN_DIR}/outputs" "${RUN_DIR}/logs"
 sudo chown -R $USER:$USER "${RUN_DIR}"
 
 /usr/bin/time -v -o "${RUN_DIR}/logs/timing.log" -- \
-docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -t ${THREADS} -cxggs ${INPUT_GLOB} > /${RUN_DIR}/outputs/${OUTPUT_GRAPH}" \
+docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -x ggs -c -t ${THREADS} ${INPUT_GLOB} > /${RUN_DIR}/outputs/${OUTPUT_GRAPH}" \
 > "${RUN_DIR}/logs/execution.log" 2>&1
 
 sudo chown -R $USER:$USER "${RUN_DIR}"
