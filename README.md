@@ -26,6 +26,7 @@ This repository contains Python scripts and configuration files to automate the 
 - **MinigraphCactus**: Hybrid approach combining Minigraph and Cactus
 - **PGGB**: Pangenome Graph Builder
 - **ProgressiveCactus**: Progressive alignment using Cactus
+- **LCPan**: VCF-driven pangenome graph builder from a single-reference FASTA + VCF (`-vg` and `-vgx` modes)
 
 ## Prerequisites
 
@@ -111,20 +112,20 @@ file (`.gfa`/rGFA), not a mapping file (`.gaf`).
 Validated example datasets currently used in this repository are:
 - `input_data/MHC_TEST`
 - `input_data/C4_TEST`
-
-Both are suitable for running `Minigraph` as separate experiments, and both now
-include validated `GRAPH/` artifacts used by the `LCPan` workflow.
+- `input_data/KIR_TEST`
 
 For `PGGB`, the same datasets are used as separate experiments, but the input
 must first be concatenated into a single FASTA per dataset.
 
 For `LCPan`, the dataset must also provide one VCF in `GRAPH/` plus a
-single-reference FASTA whose header exactly matches the VCF `CHROM` field. In
-the validated `C4_TEST` and `MHC_TEST` workflows, both files are derived from a
-temporary PanSN-normalized `PGGB` input.
+single-reference FASTA whose header exactly matches the VCF `CHROM` field.
 
 For `MinigraphCactus`, the same assembly-per-sample datasets can be reused,
 but the workflow needs a seqfile that maps sample names to FASTA paths.
+
+For `LCPan`, Docker image generation is fully integrated in `tools_config.yml`
+and `make_dockerfiles.py`; set the desired `ref` for the `lcpan` tool to pin
+the exact upstream revision used in runs.
 
 ### 3. Generate Dockerfiles
 
@@ -157,44 +158,27 @@ docker-compose run minigraph
 # etc.
 ```
 
-For real `Minigraph` graph construction runs, use the dataset-specific command
+For real graph construction runs, use the dataset-specific command
 inside the container and wrap it with `/usr/bin/time` so that both
-`execution.log` and `timing.log` are populated. Example for `MHC_TEST`:
-
-```bash
-mkdir -p results/MHC_TEST/Minigraph/outputs results/MHC_TEST/Minigraph/logs
-/usr/bin/time -v -o results/MHC_TEST/Minigraph/logs/timing.log -- \
-docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -cxggs /input_data/MHC_TEST/ASSEMBLIES/MHC-*.fa > /results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa" \
-> results/MHC_TEST/Minigraph/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/MHC_TEST/Minigraph
-python utils/organize_outputs.py Minigraph results/MHC_TEST/Minigraph/outputs
-
-# Optional: reference-only derived encodings from the canonical GFA
-docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f /results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa > /results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_wlines.gfa"
-docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W /results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa > /results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_plines.gfa"
-sudo chown $USER:$USER \
-  results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_wlines.gfa \
-  results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_plines.gfa
-```
-
-This produces:
-- `results/MHC_TEST/Minigraph/outputs/minigraph_MHC.gfa`
-- optional `results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_wlines.gfa`
-- optional `results/MHC_TEST/Minigraph/outputs/minigraph_MHC_with_plines.gfa`
-- `results/MHC_TEST/Minigraph/logs/execution.log`
-- `results/MHC_TEST/Minigraph/logs/timing.log`
+`execution.log` and `timing.log` are populated. 
 
 To build compact Markdown summaries for one dataset after runs complete, use:
 
 ```bash
 cd /home/azureuser/constructionBS
-python utils/summarize_timing_logs.py C4_TEST
-python utils/summarize_output_graphs.py C4_TEST
+python utils/summarize_timing_logs.py <TEST_NAME>
+python utils/summarize_output_graphs.py <TEST_NAME>
 ```
 
 This writes:
 - `results/<DATASET>/timing_summary.md`
 - `results/<DATASET>/output_summary.md`
+
+Canonical naming note:
+- `python utils/organize_outputs.py ...` and `python utils/summarize_output_graphs.py <DATASET>`
+  now both prefer the optional metadata field `dataset_short` when present
+- if `dataset_short` is absent, both commands keep the legacy behavior and
+  derive the short token by stripping a trailing `_TEST`
 
 ## Common GFA Line Encodings
 
@@ -212,7 +196,7 @@ Current canonical encodings in this repository:
   path embedded in the rGFA tags can be materialized from the current files
 
 For tools whose canonical `GFA` already uses `W`-lines (`Cactus`,
-`ProgressiveCactus`, `MinigraphCactus`), keep an explicit `W`-line copy and
+`ProgressiveCactus`, `MinigraphCactus`, and normalized `LCPan` outputs), keep an explicit `W`-line copy and
 derive the `P`-line version with:
 
 ```bash
@@ -238,21 +222,6 @@ docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f <conta
 docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W <container_canonical_graph.gfa> > <container_graph_with_plines.gfa>"
 sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
 ```
-
-Tool-specific file targets used in this repository:
-- `PGGB`: `pggb_<DATASET_SHORT>.gfa`, `pggb_<DATASET_SHORT>_with_wlines.gfa`,
-  `pggb_<DATASET_SHORT>_with_plines.gfa`
-- `Minigraph`: `minigraph_<DATASET_SHORT>.gfa`,
-  `minigraph_<DATASET_SHORT>_with_wlines.gfa`,
-  `minigraph_<DATASET_SHORT>_with_plines.gfa`
-- `MinigraphCactus`: `minigraphcactus_<DATASET_SHORT>.gfa`,
-  `minigraphcactus_<DATASET_SHORT>_with_wlines.gfa`,
-  `minigraphcactus_<DATASET_SHORT>_with_plines.gfa`
-- `Cactus`: `cactus_<DATASET_SHORT>.gfa`, `cactus_<DATASET_SHORT>_with_wlines.gfa`,
-  `cactus_<DATASET_SHORT>_with_plines.gfa`
-- `ProgressiveCactus`: `progressivecactus_<DATASET_SHORT>.gfa`,
-  `progressivecactus_<DATASET_SHORT>_with_wlines.gfa`,
-  `progressivecactus_<DATASET_SHORT>_with_plines.gfa`
 
 To inspect a large `GFA` without opening the full file in the editor, create a
 lightweight preview containing only the header plus `W`/`P` records. Example:
@@ -284,16 +253,6 @@ This produces:
 - `results/C4_TEST/PGGB/outputs/artifacts/`
 - `results/C4_TEST/PGGB/logs/execution.log`
 - `results/C4_TEST/PGGB/logs/timing.log`
-
-Notes from the validated runs:
-- `PGGB` writes many intermediate and auxiliary files in its output directory
-- the final graph to keep is `*.smooth.final.gfa`
-- `utils/organize_outputs.py PGGB ...` copies that file to `pggb_<DATASET_SHORT>.gfa` and moves the remaining artifacts into `outputs/artifacts/`
-- if dataset-specific `*_with_wlines.gfa` or `*_with_plines.gfa` files are already present at the top level, rerunning `organize_outputs.py` keeps publishing them with the same canonical dataset-specific names
-- `pggb_<DATASET_SHORT>.gfa` is the canonical output kept by this workflow
-- if you also want explicit `W`/`P` variants, use the shared conversion patterns
-  from `Common GFA Line Encodings`
-- the run can still produce a final graph even if `multiqc` is missing from the image; in that case the warning remains in `execution.log`
 
 To keep a stable layout after a run, you can normalize the directory with:
 
@@ -438,24 +397,6 @@ docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/
 sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
 ```
 
-Example for `MHC_TEST`:
-
-```bash
-./utils/clean_outputs.sh MHC_TEST ProgressiveCactus
-python utils/make_cactus_seqfile.py MHC_TEST --output results/MHC_TEST/ProgressiveCactus/outputs/mhc_test_seqfile.txt
-/usr/bin/time -v -o results/MHC_TEST/ProgressiveCactus/logs/timing.log docker compose run --rm progressivecactus bash -lc "cactus /results/MHC_TEST/ProgressiveCactus/outputs/jobstore /results/MHC_TEST/ProgressiveCactus/outputs/mhc_test_seqfile.txt /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.hal --batchSystem single_machine --maxCores 32" > results/MHC_TEST/ProgressiveCactus/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/MHC_TEST/ProgressiveCactus
-python utils/organize_outputs.py ProgressiveCactus results/MHC_TEST/ProgressiveCactus/outputs
-```
-
-Optional graph export from HAL:
-
-```bash
-docker compose run --rm progressivecactus bash -lc "hal2vg /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.hal > /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.vg"
-docker compose run --rm progressivecactus bash -lc "vg view -g /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.vg > /results/MHC_TEST/ProgressiveCactus/outputs/progressivecactus_MHC.gfa"
-sudo chown -R $USER:$USER results/MHC_TEST/ProgressiveCactus
-```
-
 This produces:
 - `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.hal`
 - optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.vg`
@@ -497,6 +438,10 @@ PGGB:
 
 ProgressiveCactus:
   version: v3.1.4
+
+LCPan:
+  version: v1.1
+
 ```
 
 ### Tool Requirements and Input Specifications
@@ -542,19 +487,3 @@ results/
 2. Add the tool entry to `tool_registry.py` with source type, compose service metadata, requirements, and input specs
 3. Add the Dockerfile template to `make_dockerfiles.py`
 4. Update any workflow-specific helpers only if the new tool needs custom handling beyond the shared registry
-
-## Contributing
-
-Contributions are welcome! Please ensure that:
-
-- New tools follow the established patterns
-- Configuration changes are tested
-- Documentation is updated for new features
-
-## License
-
-[Specify license here]
-
-## Contact
-
-[Add contact information]

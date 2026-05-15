@@ -1,13 +1,13 @@
 # Runbook Commands
 
-Last validated: 2026-04-30
+Last validated: 2026-05-15
 
 This file collects copy-paste commands used to run graph-construction tools in this repository.
 
 Conventions:
 - Run from repo root: `/home/azureuser/constructionBS`
 - Standard flow: `clean -> run -> chown -> organize`
-- `execution.log` and `timing.log` are written either under `results/<DATASET>/<TOOL>/logs` or, for LCPan variants, under `results/<DATASET>/LCPan/<variant>/logs`
+- `execution.log` and `timing.log` are written under `results/<DATASET>/<TOOL>/logs`
 - LCPan variant runs use explicit subdirectories under `results/<DATASET>/LCPan/`: `pggb_vg`, `pggb_vgx`, `mc_vg`, `mc_vgx`
 - In summaries and prose, use branch names `pggb_vg`, `pggb_vgx`, `from_MC_vg`, `from_MC_vgx` (where `from_MC_vg -> mc_vg` path and `from_MC_vgx -> mc_vgx` path)
 - `MC_vg` is a standalone tool under `results/<DATASET>/MC_vg`
@@ -55,101 +55,10 @@ This writes:
 
 Canonical-output rule:
 - The only canonical graph outputs for cross-tool comparisons and `output_summary.md` are the primary `.gfa` files produced by each validated run.
-- Derived files such as `_with_plines.gfa`, `_with_wlines.gfa`, temporary files, normalization artifacts, and conversion byproducts are support artifacts only.
 - Timing summaries may still mention repeated runs or variants, but that does not promote their derived files to canonical dataset outputs.
 - For LCPan specifically, branch names such as `pggb_vg`, `pggb_vgx`, `from_MC_vg`, and `from_MC_vgx` identify variants of the same tool, not separate top-level tools.
 - `organize_outputs.py` and `summarize_output_graphs.py` prefer `dataset_short` from metadata when available; otherwise they keep the legacy `_TEST -> short token` fallback.
-
-The extra timing summaries are additive:
 - `timing_summary.md` stays the dataset-wide cross-tool report
-- `pggb_timing_summary.md`, `minigraph_timing_summary.md`, and `lcpan_timing_summary.md` are tool-specific reports for repeated runs, including multithread studies
-
-## Multithread Study Layout
-
-Use dedicated run folders under `threads/` so the canonical outputs of the validated commands stay untouched.
-
-Recommended layout:
-- `results/<DATASET>/PGGB/threads/t8/{logs,outputs}`
-- `results/<DATASET>/Minigraph/threads/t8/{logs,outputs}`
-- `results/<DATASET>/LCPan/pggb_vg/threads/t8/{logs,outputs}`
-- `results/<DATASET>/LCPan/pggb_vgx/threads/t8/{logs,outputs}`
-
-Suggested workflow:
-1. Keep the standard commands below as the reference run.
-2. For multithread experiments, write logs and outputs inside `threads/t<THREADS>/`.
-3. Re-run `python utils/summarize_timing_logs.py <DATASET>` to refresh both the original dataset summary and the new per-tool summaries.
-
-Current validation status (2026-05-12):
-- `PGGB`: validated in practice; thread studies exist in `results/C4_TEST/PGGB/threads/`, `results/KIR_TEST/PGGB/threads/`, and `results/MHC_TEST/PGGB/threads/`.
-- `Minigraph`: not yet validated as a multithread workflow; current `C4_TEST` thread runs exit with status `1` and `failed to load the graph from file '/input_data/C4_TEST/ASSEMBLIES/C4-00GRCh38.fa'`.
-- `LCPan`: template prepared, but no validated `threads/` study is documented yet.
-
-## Multithread Study Commands
-
-### PGGB Multithread Template
-
-```bash
-cd /home/azureuser/constructionBS
-DATASET="C4_TEST"
-THREADS="32"
-INPUT_FASTA="/input_data/${DATASET}/ASSEMBLIES/c4_total.fa"
-RUN_DIR="results/${DATASET}/PGGB/threads/t${THREADS}"
-
-mkdir -p "${RUN_DIR}/outputs" "${RUN_DIR}/logs"
-sudo chown -R $USER:$USER "${RUN_DIR}"
-
-/usr/bin/time -v -o "${RUN_DIR}/logs/timing.log" -- \
-docker compose run --rm pggb bash -lc "pggb -i ${INPUT_FASTA} -n 96 -t ${THREADS} -o /${RUN_DIR}/outputs" \
-> "${RUN_DIR}/logs/execution.log" 2>&1
-
-sudo chown -R $USER:$USER "${RUN_DIR}"
-python utils/summarize_timing_logs.py "${DATASET}"
-```
-
-### Minigraph Multithread Template (Unvalidated)
-
-```bash
-cd /home/azureuser/constructionBS
-DATASET="C4_TEST"
-THREADS="32"
-INPUT_GLOB="/input_data/${DATASET}/ASSEMBLIES/C4-*.fa"
-OUTPUT_GRAPH="minigraph_C4.gfa"
-RUN_DIR="results/${DATASET}/Minigraph/threads/t${THREADS}"
-
-mkdir -p "${RUN_DIR}/outputs" "${RUN_DIR}/logs"
-sudo chown -R $USER:$USER "${RUN_DIR}"
-
-/usr/bin/time -v -o "${RUN_DIR}/logs/timing.log" -- \
-docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -x ggs -c -t ${THREADS} ${INPUT_GLOB} > /${RUN_DIR}/outputs/${OUTPUT_GRAPH}" \
-> "${RUN_DIR}/logs/execution.log" 2>&1
-
-sudo chown -R $USER:$USER "${RUN_DIR}"
-python utils/summarize_timing_logs.py "${DATASET}"
-```
-
-### LCPan Multithread Template
-
-```bash
-cd /home/azureuser/constructionBS
-DATASET="C4_TEST"
-THREADS="32"
-VARIANT="pggb_vg"  # or pggb_vgx
-MODE_FLAG="-vg"    # or -vgx
-REFERENCE_FASTA="/input_data/${DATASET}/GRAPH/c4_reference_pansn.fa"
-INPUT_VCF="/input_data/${DATASET}/GRAPH/lcpan_C4.vcf"
-OUTPUT_PREFIX="lcpan_C4"
-RUN_DIR="results/${DATASET}/LCPan/${VARIANT}/threads/t${THREADS}"
-
-mkdir -p "${RUN_DIR}/outputs" "${RUN_DIR}/logs"
-sudo chown -R $USER:$USER "${RUN_DIR}"
-
-/usr/bin/time -v -o "${RUN_DIR}/logs/timing.log" -- \
-docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r ${REFERENCE_FASTA} -v ${INPUT_VCF} -p /${RUN_DIR}/outputs/${OUTPUT_PREFIX} && /lcpan/lcpan-merge.sh /${RUN_DIR}/outputs/${OUTPUT_PREFIX}.log" \
-> "${RUN_DIR}/logs/execution.log" 2>&1
-
-sudo chown -R $USER:$USER "${RUN_DIR}"
-python utils/summarize_timing_logs.py "${DATASET}"
-```
 
 ## C4 End-to-End Commands By Tool
 
