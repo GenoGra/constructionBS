@@ -35,10 +35,12 @@ LCPAN_GRAPH_CANDIDATES = {
     ),
     "from_MC_vg": (
         "LCPan/mc_vg/outputs/lcpan_{dataset_short}.gfa",
+        "LCPan/mc_vg/outputs/lcpan_from_cactus.gfa",
         "LCPan/cactus_vcf_test/outputs_vg/lcpan_from_cactus.gfa",
     ),
     "from_MC_vgx": (
         "LCPan/mc_vgx/outputs/lcpan_{dataset_short}.gfa",
+        "LCPan/mc_vgx/outputs/lcpan_from_cactus.gfa",
         "LCPan/cactus_vcf_test/outputs_vgx/lcpan_from_cactus.gfa",
     ),
 }

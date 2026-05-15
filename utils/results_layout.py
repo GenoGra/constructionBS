@@ -4,8 +4,10 @@ Helpers for results layout creation and wrapped command generation.
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 import shlex
+import shutil
 
 from utils.dataset_common import DatasetReport, MINIGRAPH_OUTPUT_FILENAME
 from utils.input_resolution import get_tool_inputs
@@ -186,3 +188,122 @@ def get_minigraph_construction_command_preview(dataset_report: DatasetReport) ->
         **wrapped_preview,
         "output_graph": str(get_minigraph_graph_output_path(dataset_name)),
     }
+
+
+def _merge_tree(source_dir: Path, target_dir: Path, dry_run: bool = False) -> tuple[int, int]:
+    """
+    Move tree content into target_dir without overwriting existing conflicts.
+    """
+    moved = 0
+    skipped = 0
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for item in sorted(source_dir.iterdir()):
+        target = target_dir / item.name
+
+        if target.exists():
+            if item.is_dir() and target.is_dir():
+                sub_moved, sub_skipped = _merge_tree(item, target, dry_run=dry_run)
+                moved += sub_moved
+                skipped += sub_skipped
+                if not dry_run and not any(item.iterdir()):
+                    item.rmdir()
+                continue
+            skipped += 1
+            continue
+
+        moved += 1
+        if not dry_run:
+            shutil.move(str(item), target)
+
+    return moved, skipped
+
+
+def migrate_lcpan_legacy_layout(dataset_name: str, dry_run: bool = False) -> list[str]:
+    """
+    Migrate legacy LCPan paths to canonical variant layout under results/<DATASET>/LCPan.
+    """
+    lcpan_root = get_dataset_results_path(dataset_name) / "LCPan"
+    report: list[str] = []
+
+    if not lcpan_root.exists():
+        report.append(f"[SKIP] {dataset_name}: missing {lcpan_root}")
+        return report
+
+    report.append(f"[DATASET] {dataset_name}")
+    mapping = (
+        ("outputs", "pggb_vg/outputs"),
+        ("logs", "pggb_vg/logs"),
+        ("outputs_vgx", "pggb_vgx/outputs"),
+        ("logs_vgx", "pggb_vgx/logs"),
+        ("cactus_vcf_test/outputs_vg", "mc_vg/outputs"),
+        ("cactus_vcf_test/logs_vg", "mc_vg/logs"),
+        ("cactus_vcf_test/outputs_vgx", "mc_vgx/outputs"),
+        ("cactus_vcf_test/logs_vgx", "mc_vgx/logs"),
+    )
+
+    for source_rel, target_rel in mapping:
+        source = lcpan_root / source_rel
+        target = lcpan_root / target_rel
+
+        if not source.exists():
+            report.append(f"  - [SKIP] {source_rel} -> {target_rel} (source missing)")
+            continue
+
+        moved, skipped = _merge_tree(source, target, dry_run=dry_run)
+        status = "DRY-RUN" if dry_run else "DONE"
+        report.append(
+            f"  - [{status}] {source_rel} -> {target_rel} "
+            f"(moved={moved}, skipped_conflicts={skipped})"
+        )
+
+        if not dry_run and source.is_dir() and not any(source.iterdir()):
+            source.rmdir()
+
+    legacy_parent = lcpan_root / "cactus_vcf_test"
+    if (
+        not dry_run
+        and legacy_parent.exists()
+        and legacy_parent.is_dir()
+        and not any(legacy_parent.iterdir())
+    ):
+        legacy_parent.rmdir()
+        report.append("  - [DONE] removed empty legacy directory cactus_vcf_test/")
+
+    return report
+
+
+def _main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Results layout helpers (migration and command generation)."
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    migrate_parser = subparsers.add_parser(
+        "migrate-lcpan",
+        help="Migrate legacy LCPan layout to canonical variant subdirectories.",
+    )
+    migrate_parser.add_argument(
+        "dataset",
+        nargs="+",
+        help="Dataset name(s) under results/, e.g. C4_TEST",
+    )
+    migrate_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview migrations without moving files.",
+    )
+
+    args = parser.parse_args()
+
+    if args.command == "migrate-lcpan":
+        for dataset_name in args.dataset:
+            for line in migrate_lcpan_legacy_layout(dataset_name, dry_run=args.dry_run):
+                print(line)
+        return
+
+    parser.print_help()
+
+
+if __name__ == "__main__":
+    _main()

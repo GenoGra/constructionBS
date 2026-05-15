@@ -37,6 +37,23 @@ Optional metadata overrides (safe, opt-in only):
 cd /home/azureuser/constructionBS
 ```
 
+## LCPan Layout Migration (Legacy -> Canonical)
+
+Use this when a dataset still has legacy LCPan folders such as `outputs`,
+`outputs_vgx`, `logs`, `logs_vgx`, or `cactus_vcf_test/...`.
+
+```bash
+cd /home/azureuser/constructionBS
+python -m utils.results_layout migrate-lcpan C4_TEST --dry-run
+python -m utils.results_layout migrate-lcpan C4_TEST
+```
+
+Canonical target layout:
+- `results/<DATASET>/LCPan/pggb_vg/{outputs,logs}`
+- `results/<DATASET>/LCPan/pggb_vgx/{outputs,logs}`
+- `results/<DATASET>/LCPan/mc_vg/{outputs,logs}`
+- `results/<DATASET>/LCPan/mc_vgx/{outputs,logs}`
+
 ## Result Summaries
 
 After one dataset run is complete, generate compact Markdown summaries with:
@@ -198,6 +215,33 @@ mv results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4_with_plines.gfa.tmp \
 
 cp results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.gfa \
   results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4_with_wlines.gfa
+```
+
+### LCPan PGGB vg/vgx (Parameterized)
+
+```bash
+cd /home/azureuser/constructionBS
+
+DATASET="C4_TEST"
+DATASET_SHORT="C4"      # e.g. C4, KIR, MHC
+THREADS="32"
+VARIANT="pggb_vg"       # pggb_vg or pggb_vgx
+MODE_FLAG="-vg"         # -vg for pggb_vg, -vgx for pggb_vgx
+REFERENCE_FASTA="/input_data/${DATASET}/GRAPH/c4_reference_pansn.fa"
+INPUT_VCF="/input_data/${DATASET}/GRAPH/lcpan_${DATASET_SHORT}.vcf"
+OUT_PREFIX="/results/${DATASET}/LCPan/${VARIANT}/outputs/lcpan_${DATASET_SHORT}"
+LOG_DIR="results/${DATASET}/LCPan/${VARIANT}/logs"
+
+mkdir -p "results/${DATASET}/LCPan/${VARIANT}/outputs" "${LOG_DIR}"
+sudo chown -R $USER:$USER "results/${DATASET}/LCPan"
+
+/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+docker compose run --rm lcpan bash -lc \
+"/lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r ${REFERENCE_FASTA} -v ${INPUT_VCF} -p ${OUT_PREFIX} && /lcpan/lcpan-merge.sh ${OUT_PREFIX}.log" \
+> "${LOG_DIR}/execution.log" 2>&1
+
+sudo chown -R $USER:$USER "results/${DATASET}/LCPan"
+python utils/organize_outputs.py LCPan "results/${DATASET}/LCPan/${VARIANT}/outputs"
 ```
 
 ### PGGB (C4_TEST)
