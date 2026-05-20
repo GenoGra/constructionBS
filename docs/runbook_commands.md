@@ -83,6 +83,7 @@ Canonical-output rule:
 
 ```bash
 cd /home/azureuser/constructionBS
+mkdir -p results/C4_TEST/Minigraph/{logs,outputs}
 ./utils/clean_outputs.sh C4_TEST Minigraph
 /usr/bin/time -v -o results/C4_TEST/Minigraph/logs/timing.log -- \
 docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -cxggs /input_data/C4_TEST/ASSEMBLIES/C4-*.fa > /results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa" \
@@ -97,78 +98,6 @@ docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W /re
 sudo chown $USER:$USER \
   results/C4_TEST/Minigraph/outputs/minigraph_C4_with_wlines.gfa \
   results/C4_TEST/Minigraph/outputs/minigraph_C4_with_plines.gfa
-```
-
-### LCPan PGGB vg (C4_TEST)
-
-```bash
-cd /home/azureuser/constructionBS
-./utils/clean_outputs.sh C4_TEST LCPan
-
-# LCPan requires a single-reference FASTA whose header matches the CHROM field of
-# the input VCF. For C4_TEST we derive a PanSN-compatible FASTA/VCF pair from PGGB.
-mkdir -p input_data/C4_TEST/GRAPH/tmp/pggb_vcf
-
-awk '
-/^>/ {
-  sub(/^>/, "", $0)
-  print ">" $0 "#C4"
-  next
-}
-{ print }
-' input_data/C4_TEST/ASSEMBLIES/c4_total.fa \
-> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa
-
-docker compose run --rm pggb bash -lc \
-"samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa"
-
-/usr/bin/time -v -o input_data/C4_TEST/GRAPH/tmp/pggb_vcf/timing.log -- \
-docker compose run --rm pggb bash -lc \
-"pggb -i /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa -n 96 -o /input_data/C4_TEST/GRAPH/tmp/pggb_vcf -V 'GRCh38#0#C4:1000'" \
-> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/execution.log 2>&1
-
-cp input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa.*.smooth.final.GRCh38#0#C4.vcf \
-  input_data/C4_TEST/GRAPH/lcpan_C4.vcf
-
-docker compose run --rm pggb bash -lc \
-"samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa 'GRCh38#0#C4' > /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
-
-docker compose run --rm pggb bash -lc \
-"samtools faidx /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
-
-/usr/bin/time -v -o results/C4_TEST/LCPan/pggb_vg/logs/timing.log -- \
-docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.log" \
-> results/C4_TEST/LCPan/pggb_vg/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/LCPan
-python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/pggb_vg/outputs
-# Canonical output: results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa
-
-# Optional normalization before vg convert:
-# LCPan can emit orphan L-lines (for example a single `L 0 ...` link in C4_TEST)
-# that `vg convert` rejects. This filter keeps all S/P/W records and only drops
-# links whose endpoints are not present as S-segment IDs.
-mkdir -p results/C4_TEST/LCPan/pggb_vg/outputs/artifacts
-awk '
-/^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
-/^L\t/ { lines[++n] = $0; next }
-{ lines[++n] = $0 }
-END {
-  for (i = 1; i <= n; i++) {
-    split(lines[i], f, "\t")
-    if (f[1] == "L" && (!(f[2] in ids) || !(f[4] in ids))) continue
-    print lines[i]
-  }
-}
-' results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa \
-> results/C4_TEST/LCPan/pggb_vg/outputs/artifacts/lcpan_C4_vg_ready.gfa
-
-docker compose run --rm progressivecactus bash -lc \
-"vg convert -g -f -W /results/C4_TEST/LCPan/pggb_vg/outputs/artifacts/lcpan_C4_vg_ready.gfa > /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa.tmp" && \
-mv results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa.tmp \
-  results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa
-
-cp results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa \
-  results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_wlines.gfa
 ```
 
 ### LCPan PGGB vgx (C4_TEST)
@@ -249,6 +178,7 @@ python utils/organize_outputs.py LCPan "results/${DATASET}/LCPan/${VARIANT}/outp
 ```bash
 cd /home/azureuser/constructionBS
 THREADS="${THREADS:-16}"
+mkdir -p results/C4_TEST/PGGB/{logs,outputs}
 ./utils/clean_outputs.sh C4_TEST PGGB
 cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/ASSEMBLIES/c4_total.fa
 docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/ASSEMBLIES/c4_total.fa"
@@ -273,6 +203,7 @@ sudo chown $USER:$USER \
 
 ```bash
 cd /home/azureuser/constructionBS
+mkdir -p results/C4_TEST/MinigraphCactus/{logs,outputs}
 ./utils/clean_outputs.sh C4_TEST MinigraphCactus
 python utils/make_minigraphcactus_seqfile.py C4_TEST
 /usr/bin/time -v -o results/C4_TEST/MinigraphCactus/logs/timing.log -- \
@@ -425,6 +356,7 @@ mv \
 
 ```bash
 cd /home/azureuser/constructionBS
+mkdir -p results/C4_TEST/Cactus/{logs,outputs}
 ./utils/clean_outputs.sh C4_TEST Cactus
 python utils/make_cactus_seqfile.py C4_TEST
 /usr/bin/time -v -o results/C4_TEST/Cactus/logs/timing.log -- \
@@ -451,6 +383,7 @@ sudo chown -R $USER:$USER results/C4_TEST/Cactus
 
 ```bash
 cd /home/azureuser/constructionBS
+mkdir -p results/C4_TEST/ProgressiveCactus/{logs,outputs}
 ./utils/clean_outputs.sh C4_TEST ProgressiveCactus
 python utils/make_cactus_seqfile.py C4_TEST --output results/C4_TEST/ProgressiveCactus/outputs/c4_test_seqfile.txt
 /usr/bin/time -v -o results/C4_TEST/ProgressiveCactus/logs/timing.log -- \
