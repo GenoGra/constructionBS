@@ -81,6 +81,22 @@ TOOL_REGISTRY = {
             "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
         },
     },
+    "Theseus": {
+        "source": "git",
+        "service": {
+            "service_name": "theseus",
+            "dockerfile": "Dockerfiles/Theseus/Dockerfile",
+            "command": (
+                "mkdir -p /results && "
+                "theseus_msa --help > /results/theseus_help.txt 2>&1 || true"
+            ),
+        },
+        "requirements": {"required_dirs": ["ASSEMBLIES", "META"]},
+        "input_specs": {
+            "assemblies": {"source": "ASSEMBLIES", "mode": "many", "min_count": 2},
+        },
+    },
+
     "LCPan": {
         "source": "git",
         "service": {

@@ -86,6 +86,24 @@ services:
     - /bin/bash
     - -c
     - mkdir -p /results && cactus --help > /results/progressivecactus_help.txt 2>&1
+  theseus:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/Theseus/Dockerfile
+    volumes:
+    - type: bind
+      source: ./results
+      target: /results
+    - type: bind
+      source: ./input_data
+      target: /input_data
+    command:
+    - /bin/bash
+    - -c
+    - mkdir -p /results && theseus_msa --help > /results/theseus_help.txt 2>&1 ||
+      true
   lcpan:
     stdin_open: true
     tty: true

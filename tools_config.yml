@@ -18,6 +18,10 @@ ProgressiveCactus:
   source: image
   ref: v3.1.4
 
-LCPan:
+Theseus:
+  source: git
+  ref: v0.1
+
+LCPan:                        
   source: git
   ref: v1.1
