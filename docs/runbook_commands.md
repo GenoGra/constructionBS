@@ -21,6 +21,29 @@ Path and logging policy (always apply):
 - Never use relative container paths for graph files (for example `minigraphcactus_C4.gfa`)
 - Use `/usr/bin/time -v -o ... -- docker compose ...` for all tools to keep `timing.log` format uniform
 
+
+Input-layout policy for assembly datasets:
+- `input_data/<DATASET>/ASSEMBLIES/` contains only primary per-sample FASTA inputs.
+- `input_data/<DATASET>/ASSEMBLIES_CACTUS_SANITIZED/` contains only sanitized
+  copies of those same primary assemblies for Cactus-family workflows.
+- `input_data/<DATASET>/AUXILIARY_INPUTS/` stores helper FASTA files that must
+  not be treated as runnable assemblies, including `*_total.fa`,
+  `*_total_pansn.fa`, `*_reference.fa`, `*_queries.fa`, and original
+  multi-FASTA helper inputs.
+- Seqfile generators are expected to ignore those helper files.
+
+Graph-visualization normalization policy:
+- Never overwrite the canonical graph output from a validated run.
+- If a viewer needs the reference as a `P`-line, write a derived GFA just for
+  visualization.
+- For `Cactus`, `ProgressiveCactus`, and `MinigraphCactus`, replace only the
+  reference `W` with a `P`; leave every other sample `W` unchanged.
+- For `Minigraph`, derive only the reference path from the rGFA backbone tags
+  (`vg convert -g -r 0 ...`); sample paths are not recoverable from the
+  canonical rGFA.
+- For `LCPan`, current outputs preserve the reference `P` but not sample `W`
+  records, so sample `P` records are not derivable from the current GFA files.
+
 Optional metadata overrides (safe, opt-in only):
 - Existing validated workflows do not need any metadata changes.
 - For future datasets that should not depend on historical naming, `input_data/<DATASET>/META/dataset_info.yml` may define:
@@ -92,7 +115,8 @@ sudo chown -R $USER:$USER results/C4_TEST/Minigraph
 python utils/organize_outputs.py Minigraph results/C4_TEST/Minigraph/outputs
 # Canonical output: results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa
 
-# Optional: reference-only derived encodings from Minigraph canonical GFA
+# Optional: reference-only derived encodings from Minigraph canonical rGFA.
+# These commands recover only the reference backbone (rank 0), not sample paths.
 docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f /results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa > /results/C4_TEST/Minigraph/outputs/minigraph_C4_with_wlines.gfa"
 docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W /results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa > /results/C4_TEST/Minigraph/outputs/minigraph_C4_with_plines.gfa"
 sudo chown $USER:$USER \
@@ -180,10 +204,10 @@ cd /home/azureuser/constructionBS
 THREADS="${THREADS:-16}"
 mkdir -p results/C4_TEST/PGGB/{logs,outputs}
 ./utils/clean_outputs.sh C4_TEST PGGB
-cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/ASSEMBLIES/c4_total.fa
-docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/ASSEMBLIES/c4_total.fa"
+cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
+docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa"
 /usr/bin/time -v -o results/C4_TEST/PGGB/logs/timing.log -- \
-docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/ASSEMBLIES/c4_total.fa -n 96 -t ${THREADS} -o /results/C4_TEST/PGGB/outputs" \
+docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa -n 96 -t ${THREADS} -o /results/C4_TEST/PGGB/outputs" \
 > results/C4_TEST/PGGB/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/PGGB
 python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
@@ -215,14 +239,43 @@ python utils/organize_outputs.py MinigraphCactus results/C4_TEST/MinigraphCactus
 # - results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa.gz
 # - results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa
 
-# Derived encodings from MinigraphCactus canonical GFA (canonical already uses W-lines)
+# Derived encodings from the canonical GFA for visualization only.
+# Keep the canonical file unchanged. The reference normalization below replaces
+# only `W  C4-GRCh38` with `P  C4-GRCh38` and leaves every other sample `W`
+# unchanged.
 cp results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
   results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_wlines.gfa
-docker compose run --rm minigraphcactus bash -lc "vg convert -g -f -W /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa > /results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_plines.gfa"
+awk -v ref="C4-GRCh38" -F '\t' '
+BEGIN { OFS="\t" }
+$1=="W" && $2==ref {
+  walk=$7
+  gsub(/>/, ",", walk)
+  gsub(/</, ",-", walk)
+  sub(/^,/, "", walk)
+  n=split(walk, a, ",")
+  path=""
+  for (i=1; i<=n; i++) {
+    if (a[i]=="") continue
+    if (a[i] ~ /^-/) path = path (path ? "," : "") substr(a[i],2) "-"
+    else path = path (path ? "," : "") a[i] "+"
+  }
+  print "P", ref, path, "*"
+  found=1
+  next
+}
+{ print }
+END {
+  if (!found) {
+    print "[WARN] W-line for " ref " not found" > "/dev/stderr"
+    exit 1
+  }
+}
+' results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
+  > results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_ref_as_path.gfa
 sudo chown $USER:$USER \
   results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
   results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_wlines.gfa \
-  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_plines.gfa
+  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_ref_as_path.gfa
 ```
 
 ### MC_vg (Parameterized)
@@ -372,10 +425,39 @@ docker compose run --rm cactus bash -lc "hal2vg /results/C4_TEST/Cactus/outputs/
 docker compose run --rm cactus bash -lc "vg view -g /results/C4_TEST/Cactus/outputs/cactus_C4.vg > /results/C4_TEST/Cactus/outputs/cactus_C4.gfa"
 # Canonical output: results/C4_TEST/Cactus/outputs/cactus_C4.gfa
 
-# Derived encodings from Cactus canonical GFA (canonical already uses W-lines)
+# Derived encodings from the canonical GFA for visualization only.
+# Keep the canonical file unchanged. The reference normalization below replaces
+# only `W  C4-GRCh38` with `P  C4-GRCh38` and leaves every other sample `W`
+# unchanged.
 cp results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
   results/C4_TEST/Cactus/outputs/cactus_C4_with_wlines.gfa
-docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W /results/C4_TEST/Cactus/outputs/cactus_C4.gfa > /results/C4_TEST/Cactus/outputs/cactus_C4_with_plines.gfa"
+awk -v ref="C4-GRCh38" -F '\t' '
+BEGIN { OFS="\t" }
+$1=="W" && $2==ref {
+  walk=$7
+  gsub(/>/, ",", walk)
+  gsub(/</, ",-", walk)
+  sub(/^,/, "", walk)
+  n=split(walk, a, ",")
+  path=""
+  for (i=1; i<=n; i++) {
+    if (a[i]=="") continue
+    if (a[i] ~ /^-/) path = path (path ? "," : "") substr(a[i],2) "-"
+    else path = path (path ? "," : "") a[i] "+"
+  }
+  print "P", ref, path, "*"
+  found=1
+  next
+}
+{ print }
+END {
+  if (!found) {
+    print "[WARN] W-line for " ref " not found" > "/dev/stderr"
+    exit 1
+  }
+}
+' results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
+  > results/C4_TEST/Cactus/outputs/cactus_C4_ref_as_path.gfa
 sudo chown -R $USER:$USER results/C4_TEST/Cactus
 ```
 
@@ -399,9 +481,39 @@ docker compose run --rm progressivecactus bash -lc "hal2vg /results/C4_TEST/Prog
 docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa"
 # Canonical output: results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa
 
-# Derived encodings from ProgressiveCactus canonical GFA (canonical already uses W-lines)
-cp results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_with_wlines.gfa
-docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_with_plines.gfa"
+# Derived encodings from the canonical GFA for visualization only.
+# Keep the canonical file unchanged. The reference normalization below replaces
+# only `W  C4-GRCh38` with `P  C4-GRCh38` and leaves every other sample `W`
+# unchanged.
+cp results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa \
+  results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_with_wlines.gfa
+awk -v ref="C4-GRCh38" -F '\t' '
+BEGIN { OFS="\t" }
+$1=="W" && $2==ref {
+  walk=$7
+  gsub(/>/, ",", walk)
+  gsub(/</, ",-", walk)
+  sub(/^,/, "", walk)
+  n=split(walk, a, ",")
+  path=""
+  for (i=1; i<=n; i++) {
+    if (a[i]=="") continue
+    if (a[i] ~ /^-/) path = path (path ? "," : "") substr(a[i],2) "-"
+    else path = path (path ? "," : "") a[i] "+"
+  }
+  print "P", ref, path, "*"
+  found=1
+  next
+}
+{ print }
+END {
+  if (!found) {
+    print "[WARN] W-line for " ref " not found" > "/dev/stderr"
+    exit 1
+  }
+}
+' results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa \
+  > results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_ref_as_path.gfa
 sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
 ```
 

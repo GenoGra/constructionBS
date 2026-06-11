@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y     git     build-essential     cmake  
 
 RUN git clone --recursive https://github.com/albertjimenezbl/theseus-lib.git /theseus-lib
 WORKDIR /theseus-lib
-RUN git checkout v0.1
+RUN git checkout 45e6471a398090dd87462b187d93432062e49de8
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTS=OFF
 RUN cmake --build build --parallel
 RUN cmake --install build

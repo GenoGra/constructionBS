@@ -114,6 +114,18 @@ Validated example datasets currently used in this repository are:
 - `input_data/C4_TEST`
 - `input_data/KIR_TEST`
 
+Input layout convention for assembly datasets:
+- `ASSEMBLIES/` must contain only the primary per-sample FASTA inputs used by
+  graph-construction workflows.
+- `ASSEMBLIES_CACTUS_SANITIZED/` must contain only sanitized copies of those
+  same primary assemblies for Cactus-family workflows.
+- `AUXILIARY_INPUTS/` should store helper FASTA files that must not be treated
+  as primary assemblies, including concatenated inputs such as `*_total.fa`,
+  helper references such as `*_reference.fa`, helper query files such as
+  `*_queries.fa`, and original multi-FASTA aggregates.
+- The seqfile generators intentionally ignore those helper inputs so they are
+  not accidentally pulled into new runs.
+
 For `PGGB`, the same datasets are used as separate experiments, but the input
 must first be concatenated into a single FASTA per dataset.
 
@@ -122,6 +134,21 @@ single-reference FASTA whose header exactly matches the VCF `CHROM` field.
 
 For `MinigraphCactus`, the same assembly-per-sample datasets can be reused,
 but the workflow needs a seqfile that maps sample names to FASTA paths.
+
+Graph-visualization normalization convention:
+- Keep the canonical graph output from each tool unchanged.
+- If a viewer requires the reference to appear as a `P`-line instead of a
+  `W`-line, write a derived visualization-only GFA rather than modifying the
+  canonical file.
+- For `Cactus`, `ProgressiveCactus`, and `MinigraphCactus`, only the
+  reference `W` should be replaced with a `P`; all other sample `W`-lines stay
+  unchanged.
+- For `Minigraph`, the canonical output is an rGFA without native `P`/`W`
+  records; only the reference backbone can be derived later from the rGFA
+  tags, not the sample paths.
+- For `LCPan`, the current outputs preserve only the reference `P`; sample
+  `W`-lines and sample `P`-lines are not recoverable from the current GFA
+  outputs.
 
 For `LCPan`, Docker image generation is fully integrated in `tools_config.yml`
 and `make_dockerfiles.py`; set the desired `ref` for the `lcpan` tool to pin
@@ -240,10 +267,10 @@ count explicitly with `-n`.
 Example for `C4_TEST`:
 
 ```bash
-cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/ASSEMBLIES/c4_total.fa
-docker compose run --rm pggb bash -lc 'samtools faidx /input_data/C4_TEST/ASSEMBLIES/c4_total.fa'
+cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
+docker compose run --rm pggb bash -lc 'samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa'
 mkdir -p results/C4_TEST/PGGB/outputs results/C4_TEST/PGGB/logs
-/usr/bin/time -p -o results/C4_TEST/PGGB/logs/timing.log docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/ASSEMBLIES/c4_total.fa -n 96 -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
+/usr/bin/time -p -o results/C4_TEST/PGGB/logs/timing.log docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa -n 96 -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/PGGB
 python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
 ```
@@ -270,7 +297,7 @@ For `LCPan`, use a PGGB-derived VCF plus a single-reference FASTA with an
 exactly matching sequence name. `LCPan` itself expects `ref.fa`, `ref.fa.fai`,
 and a plain-text `.vcf`; for the validated `C4_TEST` run the working reference
 was `GRCh38#0#C4` extracted from a temporary PanSN FASTA built from
-`c4_total.fa`.
+`AUXILIARY_INPUTS/c4_total.fa`.
 
 Example for `C4_TEST`:
 
@@ -284,7 +311,7 @@ awk '
   next
 }
 { print }
-' input_data/C4_TEST/ASSEMBLIES/c4_total.fa \
+' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa \
 > input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa
 
 docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa"
