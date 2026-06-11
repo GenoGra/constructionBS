@@ -205,22 +205,94 @@ THREADS="${THREADS:-16}"
 mkdir -p results/C4_TEST/PGGB/{logs,outputs}
 ./utils/clean_outputs.sh C4_TEST PGGB
 cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
-docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa"
-/usr/bin/time -v -o results/C4_TEST/PGGB/logs/timing.log -- \
-docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa -n 96 -t ${THREADS} -o /results/C4_TEST/PGGB/outputs" \
-> results/C4_TEST/PGGB/logs/execution.log 2>&1
+
+awk '
+/^>/ {
+  h = substr($0, 2)
+  if (match(h, /^(.*)_([0-9]+)$/, a)) {
+    print ">" a[1] "#" a[2] "#C4"
+  } else {
+    print "ERROR: unrecognized header -> " h > "/dev/stderr"
+    exit 1
+  }
+  next
+}
+{ print }
+' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa
+
+docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa"
+/usr/bin/time -v -o results/C4_TEST/PGGB/logs/timing.log -- docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa -n 96 -t ${THREADS} -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/PGGB
 python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
 # Canonical output: results/C4_TEST/PGGB/outputs/pggb_C4.gfa
 
-# Derived encodings from PGGB canonical GFA (canonical already uses P-lines)
-cp results/C4_TEST/PGGB/outputs/pggb_C4.gfa \
-  results/C4_TEST/PGGB/outputs/pggb_C4_with_plines.gfa
-docker compose run --rm progressivecactus bash -lc "vg convert -g -f /results/C4_TEST/PGGB/outputs/pggb_C4.gfa > /results/C4_TEST/PGGB/outputs/pggb_C4_with_wlines.gfa"
-sudo chown $USER:$USER \
-  results/C4_TEST/PGGB/outputs/pggb_C4.gfa \
-  results/C4_TEST/PGGB/outputs/pggb_C4_with_wlines.gfa \
-  results/C4_TEST/PGGB/outputs/pggb_C4_with_plines.gfa
+# Cross-tool normalization for C4 only:
+# - keep GRCh38#0#C4 as the only P-line
+# - convert every non-reference sample path to a W-line
+awk '
+BEGIN {
+  FS = OFS = "	"
+  ref = "GRCh38#0#C4"
+}
+$1 == "S" {
+  seglen[$2] = length($3)
+  print
+  next
+}
+$1 != "P" {
+  print
+  next
+}
+{
+  name = $2
+  path = $3
+
+  if (name == ref) {
+    print
+    next
+  }
+
+  if (match(name, /^([^#]+)#([^#]+)#(.+)$/, a) == 0) {
+    print "ERROR: non-canonical PanSN name -> " name > "/dev/stderr"
+    exit 1
+  }
+
+  sample = a[1]
+  hap = a[2]
+  seqid = a[3]
+
+  n = split(path, steps, ",")
+  walk = ""
+  endpos = 0
+
+  for (i = 1; i <= n; i++) {
+    step = steps[i]
+    orient = substr(step, length(step), 1)
+    node = substr(step, 1, length(step) - 1)
+
+    if (!(node in seglen)) {
+      print "ERROR: missing segment -> " node > "/dev/stderr"
+      exit 1
+    }
+
+    if (orient == "+") {
+      walk = walk ">" node
+    } else if (orient == "-") {
+      walk = walk "<" node
+    } else {
+      print "ERROR: invalid orientation -> " step > "/dev/stderr"
+      exit 1
+    }
+
+    endpos += seglen[node]
+  }
+
+  print "W", sample, hap, seqid, 0, endpos - 1, walk
+}
+''' results/C4_TEST/PGGB/outputs/pggb_C4.gfa > results/C4_TEST/PGGB/outputs/pggb_C4_refP_sampleW.gfa
+
+awk '''BEGIN{h=0;s=0;l=0;p=0;w=0} /^H	/{h++} /^S	/{s++} /^L	/{l++} /^P	/{p++} /^W	/{w++} END{print "H="h,"S="s,"L="l,"P="p,"W="w}'''   results/C4_TEST/PGGB/outputs/pggb_C4_refP_sampleW.gfa
+# Expected for C4_TEST normalized view: P=1, W=95
 ```
 
 ### MinigraphCactus (C4_TEST)

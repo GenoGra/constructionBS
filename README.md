@@ -260,17 +260,34 @@ grep -nE '^[HWP]	' results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
 ```
 
 For `PGGB`, use the official container image and prepare one aggregated FASTA
-per dataset. The input FASTA must also be indexed with `samtools faidx`, and if
-the sequence names do not respect PanSN naming you must provide the haplotype
-count explicitly with `-n`.
+per dataset. The input FASTA must also be indexed with `samtools faidx`. In
+practice, the most robust setup is to build a PanSN FASTA with canonical
+headers of the form `sample#hap#contig_or_region`; this avoids ambiguous prefix
+grouping during PGGB's prefix-based mapping stage and makes the final GFA
+consistent with downstream tooling.
 
 Example for `C4_TEST`:
 
 ```bash
 cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
-docker compose run --rm pggb bash -lc 'samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa'
+
+awk '
+/^>/ {
+  h = substr($0, 2)
+  if (match(h, /^(.*)_([0-9]+)$/, a)) {
+    print ">" a[1] "#" a[2] "#C4"
+  } else {
+    print "ERROR: unrecognized header -> " h > "/dev/stderr"
+    exit 1
+  }
+  next
+}
+{ print }
+' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa
+
+docker compose run --rm pggb bash -lc 'samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa'
 mkdir -p results/C4_TEST/PGGB/outputs results/C4_TEST/PGGB/logs
-/usr/bin/time -p -o results/C4_TEST/PGGB/logs/timing.log docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa -n 96 -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
+/usr/bin/time -p -o results/C4_TEST/PGGB/logs/timing.log docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa -n 96 -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
 sudo chown -R $USER:$USER results/C4_TEST/PGGB
 python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
 ```
@@ -292,6 +309,80 @@ This keeps:
 
 and moves the original PGGB-generated files into:
 - `results/C4_TEST/PGGB/outputs/artifacts/`
+
+For cross-tool comparisons on `C4_TEST`, the raw PGGB GFA may need one final
+normalization step. PGGB emits `P` lines for every sample, while the rest of
+this study uses one reference `P` plus sample `W` lines. The validated
+convention is:
+- keep `GRCh38#0#C4` as the only `P`
+- convert every non-reference sample path to a `W`
+- preserve segments and links unchanged
+
+Example normalization:
+
+```bash
+awk '
+BEGIN {
+  FS = OFS = "	"
+  ref = "GRCh38#0#C4"
+}
+$1 == "S" {
+  seglen[$2] = length($3)
+  print
+  next
+}
+$1 != "P" {
+  print
+  next
+}
+{
+  name = $2
+  path = $3
+
+  if (name == ref) {
+    print
+    next
+  }
+
+  if (match(name, /^([^#]+)#([^#]+)#(.+)$/, a) == 0) {
+    print "ERROR: non-canonical PanSN name -> " name > "/dev/stderr"
+    exit 1
+  }
+
+  sample = a[1]
+  hap = a[2]
+  seqid = a[3]
+
+  n = split(path, steps, ",")
+  walk = ""
+  endpos = 0
+
+  for (i = 1; i <= n; i++) {
+    step = steps[i]
+    orient = substr(step, length(step), 1)
+    node = substr(step, 1, length(step) - 1)
+
+    if (!(node in seglen)) {
+      print "ERROR: missing segment -> " node > "/dev/stderr"
+      exit 1
+    }
+
+    if (orient == "+") {
+      walk = walk ">" node
+    } else if (orient == "-") {
+      walk = walk "<" node
+    } else {
+      print "ERROR: invalid orientation -> " step > "/dev/stderr"
+      exit 1
+    }
+
+    endpos += seglen[node]
+  }
+
+  print "W", sample, hap, seqid, 0, endpos - 1, walk
+}
+' results/C4_TEST/PGGB/outputs/pggb_C4.gfa > results/C4_TEST/PGGB/outputs/pggb_C4_refP_sampleW.gfa
+```
 
 For `LCPan`, use a PGGB-derived VCF plus a single-reference FASTA with an
 exactly matching sequence name. `LCPan` itself expects `ref.fa`, `ref.fa.fai`,

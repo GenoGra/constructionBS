@@ -16,7 +16,17 @@ import argparse
 
 VALID_FASTA_SUFFIXES = {".fa", ".fasta", ".fna"}
 IGNORED_SUFFIXES = {".fai"}
-IGNORED_STEMS = {"c4_total", "mhc_total", "c4_queries", "c4_reference"}
+IGNORED_STEMS = {
+    "c4_total",
+    "mhc_total",
+    "kir_total",
+    "monkeypox_100_seq",
+    "salmonella_total",
+    "salmonella_total_pansn",
+    "c4_queries",
+    "c4_reference",
+}
+IGNORED_STEM_SUFFIXES = ("_total", "_total_pansn", "_queries", "_reference")
 SANITIZED_DIRNAME = "ASSEMBLIES_CACTUS_SANITIZED"
 
 
@@ -40,7 +50,10 @@ def find_fasta_files(assemblies_dir: Path) -> list[Path]:
             continue
         if path.suffix in IGNORED_SUFFIXES:
             continue
-        if path.stem.lower() in IGNORED_STEMS:
+        stem = path.stem.lower()
+        if stem in IGNORED_STEMS:
+            continue
+        if stem.endswith(IGNORED_STEM_SUFFIXES):
             continue
         if path.suffix.lower() in VALID_FASTA_SUFFIXES:
             fasta_files.append(path)
