@@ -104,6 +104,24 @@ services:
     - -c
     - mkdir -p /results && theseus_msa --help > /results/theseus_help.txt 2>&1 ||
       true
+  poasta:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/POASTA/Dockerfile
+    volumes:
+    - type: bind
+      source: ./results
+      target: /results
+    - type: bind
+      source: ./input_data
+      target: /input_data
+    command:
+    - /bin/bash
+    - -c
+    - mkdir -p /results && poasta align --help > /results/poasta_help.txt 2>&1 ||
+      true
   lcpan:
     stdin_open: true
     tty: true

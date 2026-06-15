@@ -97,6 +97,13 @@ TOOL_SPECS = {
         optional_top_level_suffixes=(".vg", ".gfa", "_with_plines.gfa", "_with_wlines.gfa"),
         compressed=False,
     ),
+    "POASTA": ToolOutputSpec(
+        tool_name="POASTA",
+        final_output_pattern="*.gfa",
+        canonical_uncompressed_suffix=".gfa",
+        optional_top_level_suffixes=(".poasta", "_msa.fasta"),
+        compressed=False,
+    ),
 }
 
 

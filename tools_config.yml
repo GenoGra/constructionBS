@@ -22,6 +22,10 @@ Theseus:
   source: git
   ref: 45e6471a398090dd87462b187d93432062e49de8
 
-LCPan:                        
+POASTA:
+  source: git
+  ref: v0.1.0
+
+LCPan:
   source: git
   ref: v1.1
