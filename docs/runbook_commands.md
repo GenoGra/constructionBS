@@ -295,6 +295,60 @@ awk '''BEGIN{h=0;s=0;l=0;p=0;w=0} /^H	/{h++} /^S	/{s++} /^L	/{l++} /^P	/{p++} /^
 # Expected for C4_TEST normalized view: P=1, W=95
 ```
 
+### POASTA (C4_TEST)
+
+POASTA performs partial-order multiple sequence alignment from a single
+multi-FASTA. It reuses the same PanSN-headered concatenation produced for PGGB
+(`c4_total_pansn.fa`) so sample names match the other tools. Sample paths are
+emitted as `W` lines (the PanSN string is preserved in the seqid field).
+
+Note on `docker compose run -T`: POASTA needs the `-T` flag (disable pseudo-TTY
+allocation). Without it the `docker compose run` client receives `SIGTTOU` and
+suspends (state `T`) after the container finishes, leaving the terminal hung and
+`/usr/bin/time` unable to write `timing.log`. With `-T` the command returns
+normally and both logs are written, exactly like the other tools. POASTA itself
+is silent on success, so `execution.log` only holds the `Container ...` lines;
+an empty body there means the run succeeded, not that it failed.
+
+```bash
+cd /home/azureuser/constructionBS
+mkdir -p results/C4_TEST/POASTA/{logs,outputs}
+./utils/clean_outputs.sh C4_TEST POASTA
+
+# Reuse the PGGB PanSN concatenation; regenerate it only if missing.
+if [ ! -s input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa ]; then
+  cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
+  awk '
+  /^>/ {
+    h = substr($0, 2)
+    if (match(h, /^(.*)_([0-9]+)$/, a)) {
+      print ">" a[1] "#" a[2] "#C4"
+    } else {
+      print "ERROR: unrecognized header -> " h > "/dev/stderr"
+      exit 1
+    }
+    next
+  }
+  { print }
+  ' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa
+fi
+
+# time -v stays OUTSIDE (same as every other tool); the only difference is `-T`.
+# align builds the native .poasta graph; two `view` passes derive GFA + MSA
+# without re-aligning.
+/usr/bin/time -v -o results/C4_TEST/POASTA/logs/timing.log -- \
+docker compose run --rm -T poasta bash -lc "\
+poasta align -O poasta -o /results/C4_TEST/POASTA/outputs/poasta_C4.poasta /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa && \
+poasta view -O gfa -o /results/C4_TEST/POASTA/outputs/poasta_C4.gfa /results/C4_TEST/POASTA/outputs/poasta_C4.poasta && \
+poasta view -O fasta -o /results/C4_TEST/POASTA/outputs/poasta_C4_msa.fasta /results/C4_TEST/POASTA/outputs/poasta_C4.poasta" \
+> results/C4_TEST/POASTA/logs/execution.log 2>&1
+
+sudo chown -R $USER:$USER results/C4_TEST/POASTA
+python utils/organize_outputs.py POASTA results/C4_TEST/POASTA/outputs
+# Canonical output: results/C4_TEST/POASTA/outputs/poasta_C4.gfa
+# Auxiliary outputs: poasta_C4.poasta (native graph), poasta_C4_msa.fasta (MSA)
+```
+
 ### MinigraphCactus (C4_TEST)
 
 ```bash

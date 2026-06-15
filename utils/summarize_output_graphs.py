@@ -22,6 +22,7 @@ STANDARD_TOOL_ORDER = [
     "MC_vg",
     "Cactus",
     "ProgressiveCactus",
+    "POASTA",
 ]
 
 LCPAN_GRAPH_CANDIDATES = {
@@ -61,6 +62,7 @@ CANONICAL_GRAPH_PATTERNS = {
         "outputs/cactus_alignment.gfa",
     ),
     "ProgressiveCactus": ("outputs/progressivecactus_{dataset_short}.gfa",),
+    "POASTA": ("outputs/poasta_{dataset_short}.gfa",),
     "LCPan": ("outputs/lcpan_{dataset_short}.gfa",),
 }
 
