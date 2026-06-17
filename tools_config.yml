@@ -20,7 +20,7 @@ ProgressiveCactus:
 
 Theseus:
   source: git
-  ref: 45e6471a398090dd87462b187d93432062e49de8
+  ref: v1.0.0
 
 POASTA:
   source: git
