@@ -8,7 +8,5 @@ from tool_registry import TOOL_INPUT_SPECS, TOOL_REQUIREMENTS
 
 EXPECTED_FILE_TYPES = {
     "ASSEMBLIES": [".fa", ".fasta", ".fna"],
-    "GRAPH": [".gfa", ".rgfa", ".vcf"],
-    "READS": [".fa", ".fasta", ".fq", ".fastq", ".txt"],
-    "TREE": [".nwk", ".newick", ".tree"],
+    "GRAPH": [".fa", ".fasta", ".fna", ".gfa", ".rgfa", ".vcf"],
 }

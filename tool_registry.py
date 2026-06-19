@@ -124,7 +124,11 @@ TOOL_REGISTRY = {
         },
         "requirements": {"required_dirs": ["ASSEMBLIES", "GRAPH", "META"]},
         "input_specs": {
-            "reference": {"source": "ASSEMBLIES", "mode": "single", "name_pattern": "*_total.fa"},
+            "reference": {
+                "source": "GRAPH",
+                "mode": "single",
+                "name_pattern": "*_reference_pansn.fa",
+            },
             "variants": {"source": "GRAPH", "mode": "single", "name_pattern": "lcpan_*.vcf"},
         },
     },

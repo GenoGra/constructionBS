@@ -261,10 +261,6 @@ def get_tool_runnability(tool_name: str, dataset_report: DatasetReport) -> ToolR
         "reason": None,
     }
 
-    if not dataset_report["structure"]["structure_ok"]:
-        result["reason"] = "dataset structure is not valid"
-        return result
-
     requirements = TOOL_REQUIREMENTS.get(tool_name)
     if requirements is None:
         result["reason"] = f"no requirements defined for tool {tool_name}"

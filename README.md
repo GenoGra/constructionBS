@@ -54,11 +54,9 @@ Datasets should follow this directory structure:
 ```
 dataset_name/
 ├── ASSEMBLIES/     # Assembly files (.fa, .fasta, .fna)
-├── GRAPH/          # Graph files (.gfa, .rgfa)
+├── GRAPH/          # Graph/runtime files (.fa, .fasta, .fna, .gfa, .rgfa, .vcf)
 ├── META/           # Metadata files
 │   └── dataset_info.yml
-├── READS/          # Read files (.fa, .fasta, .fq, .fastq)
-└── TREE/           # Tree files (.nwk, .newick)
 ```
 
 ### Metadata File (META/dataset_info.yml)
@@ -69,8 +67,6 @@ description: "Dataset description"
 expected_inputs:
   assemblies: true
   graph: true
-  reads: false
-  tree: false
 supported_workflows:
   cactus: true
   minigraph: true
@@ -119,6 +115,9 @@ Input layout convention for assembly datasets:
   graph-construction workflows.
 - `ASSEMBLIES_CACTUS_SANITIZED/` must contain only sanitized copies of those
   same primary assemblies for Cactus-family workflows.
+- `C4_TEST` is a validated historical exception: `ASSEMBLIES/` is currently a
+  symlink-based view of `ASSEMBLIES_CACTUS_SANITIZED/`, so the primary inputs
+  visible there are already the sanitized files.
 - `AUXILIARY_INPUTS/` should store helper FASTA files that must not be treated
   as primary assemblies, including concatenated inputs such as `*_total.fa`,
   helper references such as `*_reference.fa`, helper query files such as
@@ -131,6 +130,7 @@ must first be concatenated into a single FASTA per dataset.
 
 For `LCPan`, the dataset must also provide one VCF in `GRAPH/` plus a
 single-reference FASTA whose header exactly matches the VCF `CHROM` field.
+Those two files are now treated as official dataset inputs under `GRAPH/`.
 
 For `MinigraphCactus`, the same assembly-per-sample datasets can be reused,
 but the workflow needs a seqfile that maps sample names to FASTA paths.
@@ -179,9 +179,9 @@ This generates a compose file with services for each tool, mounting the `input_d
 Start the desired tool service:
 
 ```bash
-docker-compose run cactus
+docker compose run cactus
 # or
-docker-compose run minigraph
+docker compose run minigraph
 # etc.
 ```
 
@@ -223,7 +223,7 @@ Current canonical encodings in this repository:
   path embedded in the rGFA tags can be materialized from the current files
 
 For tools whose canonical `GFA` already uses `W`-lines (`Cactus`,
-`ProgressiveCactus`, `MinigraphCactus`, and normalized `LCPan` outputs), keep an explicit `W`-line copy and
+`ProgressiveCactus`, and `MinigraphCactus`), keep an explicit `W`-line copy and
 derive the `P`-line version with:
 
 ```bash
@@ -232,8 +232,9 @@ docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W <contain
 sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
 ```
 
-For tools whose canonical `GFA` already uses `P`-lines (`PGGB`), keep an
-explicit `P`-line copy and derive the `W`-line version with:
+For tools whose canonical `GFA` already uses `P`-lines (`PGGB`, and the
+current reference-only `LCPan` outputs), keep an explicit `P`-line copy and
+derive the `W`-line version with:
 
 ```bash
 cp <canonical_graph.gfa> <graph_with_plines.gfa>

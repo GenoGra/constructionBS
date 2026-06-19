@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, TypedDict
 
 
-STANDARD_DIRS = ["ASSEMBLIES", "GRAPH", "META", "READS", "TREE"]
+STANDARD_DIRS = ["ASSEMBLIES", "GRAPH", "META"]
 METADATA_RELATIVE_PATH = Path("META") / "dataset_info.yml"
 VALID_INPUT_MODES = {"many", "single"}
 MINIGRAPH_OUTPUT_FILENAME = "minigraph_graph.gfa"
@@ -16,8 +16,6 @@ MINIGRAPH_OUTPUT_FILENAME = "minigraph_graph.gfa"
 INPUT_TO_DIR_MAPPING = {
     "assemblies": "ASSEMBLIES",
     "graph": "GRAPH",
-    "reads": "READS",
-    "tree": "TREE",
 }
 
 

@@ -1,6 +1,6 @@
 # Runbook Commands
 
-Last validated: 2026-05-15
+Last validated: 2026-06-19
 
 This file collects copy-paste commands used to run graph-construction tools in this repository.
 
@@ -26,6 +26,9 @@ Input-layout policy for assembly datasets:
 - `input_data/<DATASET>/ASSEMBLIES/` contains only primary per-sample FASTA inputs.
 - `input_data/<DATASET>/ASSEMBLIES_CACTUS_SANITIZED/` contains only sanitized
   copies of those same primary assemblies for Cactus-family workflows.
+- `C4_TEST` is a validated historical exception: `ASSEMBLIES/` is currently a
+  symlink-based view of `ASSEMBLIES_CACTUS_SANITIZED/`, so the visible primary
+  inputs there are already the sanitized files.
 - `input_data/<DATASET>/AUXILIARY_INPUTS/` stores helper FASTA files that must
   not be treated as runnable assemblies, including `*_total.fa`,
   `*_total_pansn.fa`, `*_reference.fa`, `*_queries.fa`, and original
@@ -53,6 +56,11 @@ Optional metadata overrides (safe, opt-in only):
   - `reference_name`
 - These keys only act as overrides when present; if absent, all current commands and fallbacks remain unchanged.
 - Keep override targets inside `input_data/<DATASET>/...`; this preserves the current structure checks, mounted paths, and rerun behavior.
+
+`GRAPH/` policy for validated assembly datasets:
+- keep official `LCPan` runtime inputs there: `lcpan_*.vcf`, `*_reference_pansn.fa`, and their indexes
+- keep temporary derivation work under `GRAPH/tmp/` only as non-canonical build scratch space
+- keep concatenated and helper FASTA files in `AUXILIARY_INPUTS/`, not in `GRAPH/`
 
 ## Common Setup
 
