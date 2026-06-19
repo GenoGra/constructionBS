@@ -18,6 +18,7 @@ STANDARD_TOOL_ORDER = [
     "Cactus",
     "ProgressiveCactus",
     "POASTA",
+    "Theseus",
 ]
 
 LCPAN_TIMING_CANDIDATES = {

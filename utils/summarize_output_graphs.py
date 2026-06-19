@@ -23,6 +23,7 @@ STANDARD_TOOL_ORDER = [
     "Cactus",
     "ProgressiveCactus",
     "POASTA",
+    "Theseus",
 ]
 
 LCPAN_GRAPH_CANDIDATES = {
@@ -63,6 +64,7 @@ CANONICAL_GRAPH_PATTERNS = {
     ),
     "ProgressiveCactus": ("outputs/progressivecactus_{dataset_short}.gfa",),
     "POASTA": ("outputs/poasta_{dataset_short}.gfa",),
+    "Theseus": ("outputs/theseus_{dataset_short}.gfa",),
     "LCPan": ("outputs/lcpan_{dataset_short}.gfa",),
 }
 
