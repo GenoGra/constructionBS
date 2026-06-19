@@ -100,28 +100,41 @@ Canonical-output rule:
 - `organize_outputs.py` and `summarize_output_graphs.py` prefer `dataset_short` from metadata when available; otherwise they keep the legacy `_TEST -> short token` fallback.
 - `timing_summary.md` stays the dataset-wide cross-tool report
 
-## C4 End-to-End Commands By Tool
+## Parameterized Commands By Tool
 
-### Minigraph (C4_TEST)
+The sections below are written to be copy-paste friendly across datasets while
+preserving the same result layout used by `C4_TEST`.
+
+---
+
+### Minigraph (Parameterized)
 
 ```bash
 cd /home/azureuser/constructionBS
-mkdir -p results/C4_TEST/Minigraph/{logs,outputs}
-./utils/clean_outputs.sh C4_TEST Minigraph
-/usr/bin/time -v -o results/C4_TEST/Minigraph/logs/timing.log -- \
-docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -cxggs /input_data/C4_TEST/ASSEMBLIES/C4-*.fa > /results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa" \
-> results/C4_TEST/Minigraph/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/Minigraph
-python utils/organize_outputs.py Minigraph results/C4_TEST/Minigraph/outputs
-# Canonical output: results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa
 
-# Optional: reference-only derived encodings from Minigraph canonical rGFA.
-# These commands recover only the reference backbone (rank 0), not sample paths.
-docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f /results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa > /results/C4_TEST/Minigraph/outputs/minigraph_C4_with_wlines.gfa"
-docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W /results/C4_TEST/Minigraph/outputs/minigraph_C4.gfa > /results/C4_TEST/Minigraph/outputs/minigraph_C4_with_plines.gfa"
-sudo chown $USER:$USER \
-  results/C4_TEST/Minigraph/outputs/minigraph_C4_with_wlines.gfa \
-  results/C4_TEST/Minigraph/outputs/minigraph_C4_with_plines.gfa
+DATASET="C4_TEST"
+DATASET_SHORT="C4"          # e.g. C4, KIR, MHC
+TOOL="Minigraph"
+ASSEMBLY_GLOB="/input_data/${DATASET}/ASSEMBLIES/${DATASET_SHORT}-*.fa"
+RUN_DIR="results/${DATASET}/${TOOL}"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+CANONICAL_GFA="${OUTPUT_DIR}/minigraph_${DATASET_SHORT}.gfa"
+
+mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
+./utils/clean_outputs.sh "${DATASET}" "${TOOL}"
+/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -cxggs ${ASSEMBLY_GLOB} > ${CANONICAL_GFA}" > "${LOG_DIR}/execution.log" 2>&1
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/organize_outputs.py "${TOOL}" "${OUTPUT_DIR}"
+# Canonical output: ${CANONICAL_GFA}
+
+# Derived outputs (optional, keep the canonical rGFA unchanged):
+# - ${OUTPUT_DIR}/minigraph_${DATASET_SHORT}_with_wlines.gfa
+# - ${OUTPUT_DIR}/minigraph_${DATASET_SHORT}_with_plines.gfa
+# These recover only the reference backbone (rank 0), not sample paths.
+docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f /${CANONICAL_GFA} > /${OUTPUT_DIR}/minigraph_${DATASET_SHORT}_with_wlines.gfa"
+docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W /${CANONICAL_GFA} > /${OUTPUT_DIR}/minigraph_${DATASET_SHORT}_with_plines.gfa"
+sudo chown $USER:$USER   "${OUTPUT_DIR}/minigraph_${DATASET_SHORT}_with_wlines.gfa"   "${OUTPUT_DIR}/minigraph_${DATASET_SHORT}_with_plines.gfa"
 ```
 
 ### LCPan PGGB vgx (C4_TEST)
@@ -170,6 +183,8 @@ cp results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.gfa \
   results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4_with_wlines.gfa
 ```
 
+---
+
 ### LCPan PGGB vg/vgx (Parameterized)
 
 ```bash
@@ -180,37 +195,94 @@ DATASET_SHORT="C4"      # e.g. C4, KIR, MHC
 THREADS="32"
 VARIANT="pggb_vg"       # pggb_vg or pggb_vgx
 MODE_FLAG="-vg"         # -vg for pggb_vg, -vgx for pggb_vgx
-REFERENCE_FASTA="/input_data/${DATASET}/GRAPH/c4_reference_pansn.fa"
+REFERENCE_FASTA="/input_data/${DATASET}/GRAPH/${DATASET_SHORT,,}_reference_pansn.fa"
 INPUT_VCF="/input_data/${DATASET}/GRAPH/lcpan_${DATASET_SHORT}.vcf"
-OUT_PREFIX="/results/${DATASET}/LCPan/${VARIANT}/outputs/lcpan_${DATASET_SHORT}"
-LOG_DIR="results/${DATASET}/LCPan/${VARIANT}/logs"
 
-mkdir -p "results/${DATASET}/LCPan/${VARIANT}/outputs" "${LOG_DIR}"
-sudo chown -R $USER:$USER "results/${DATASET}/LCPan"
+LCPAN_DIR="results/${DATASET}/LCPan"
+RUN_DIR="${LCPAN_DIR}/${VARIANT}"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+OUT_PREFIX="/results/${DATASET}/LCPan/${VARIANT}/outputs/lcpan_${DATASET_SHORT}"
+CANONICAL_GFA="${OUTPUT_DIR}/lcpan_${DATASET_SHORT}.gfa"
+
+mkdir -p "${OUTPUT_DIR}" "${LOG_DIR}"
+sudo chown -R $USER:$USER "${LCPAN_DIR}"
 
 /usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
 docker compose run --rm lcpan bash -lc \
 "/lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r ${REFERENCE_FASTA} -v ${INPUT_VCF} -p ${OUT_PREFIX} && /lcpan/lcpan-merge.sh ${OUT_PREFIX}.log" \
 > "${LOG_DIR}/execution.log" 2>&1
 
-sudo chown -R $USER:$USER "results/${DATASET}/LCPan"
-python utils/organize_outputs.py LCPan "results/${DATASET}/LCPan/${VARIANT}/outputs"
+sudo chown -R $USER:$USER "${LCPAN_DIR}"
+python utils/organize_outputs.py LCPan "${OUTPUT_DIR}"
+# Canonical output: ${CANONICAL_GFA}
+
+# Derived outputs (optional, keep the canonical GFA unchanged):
+# - ${OUTPUT_DIR}/lcpan_${DATASET_SHORT}_with_plines.gfa
+# - ${OUTPUT_DIR}/lcpan_${DATASET_SHORT}_with_wlines.gfa
+# LCPan can emit orphan L-links after variant-only filtering, so clean the GFA
+# before asking vg to derive a reference-only P-lines view.
+mkdir -p "${OUTPUT_DIR}/artifacts"
+awk '
+/^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
+/^L\t/ { lines[++n] = $0; next }
+{ lines[++n] = $0 }
+END {
+  for (i = 1; i <= n; i++) {
+    split(lines[i], f, "\t")
+    if (f[1] == "L" && (!(f[2] in ids) || !(f[4] in ids))) continue
+    print lines[i]
+  }
+}
+' "${CANONICAL_GFA}" > "${OUTPUT_DIR}/artifacts/lcpan_${DATASET_SHORT}_vg_ready.gfa"
+
+docker compose run --rm progressivecactus bash -lc \
+"vg convert -g -f -W /${OUTPUT_DIR}/artifacts/lcpan_${DATASET_SHORT}_vg_ready.gfa > /${OUTPUT_DIR}/lcpan_${DATASET_SHORT}_with_plines.gfa.tmp"
+mv "${OUTPUT_DIR}/lcpan_${DATASET_SHORT}_with_plines.gfa.tmp" \
+  "${OUTPUT_DIR}/lcpan_${DATASET_SHORT}_with_plines.gfa"
+cp "${CANONICAL_GFA}" \
+  "${OUTPUT_DIR}/lcpan_${DATASET_SHORT}_with_wlines.gfa"
+
+sudo chown -R $USER:$USER "${LCPAN_DIR}"
 ```
 
-### PGGB (C4_TEST)
+---
+
+### PGGB (Parameterized)
 
 ```bash
 cd /home/azureuser/constructionBS
-THREADS="${THREADS:-16}"
-mkdir -p results/C4_TEST/PGGB/{logs,outputs}
-./utils/clean_outputs.sh C4_TEST PGGB
-cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
 
-awk '
+DATASET="C4_TEST"
+DATASET_SHORT="C4"               # e.g. C4, KIR, MHC
+THREADS="${THREADS:-16}"
+PGGB_N="96"                      # number of PanSN sequences in the input
+REFERENCE_PAN_NAME="GRCh38#0#C4" # exact P-line name to preserve in the derived view
+
+RUN_DIR="results/${DATASET}/PGGB"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+AUX_DIR="input_data/${DATASET}/AUXILIARY_INPUTS"
+TOTAL_FA="${AUX_DIR}/${DATASET_SHORT,,}_total.fa"
+PAN_INPUT="${AUX_DIR}/${DATASET_SHORT,,}_total_pansn.fa"
+CANONICAL_GFA="${OUTPUT_DIR}/pggb_${DATASET_SHORT}.gfa"
+DERIVED_GFA="${OUTPUT_DIR}/pggb_${DATASET_SHORT}_refP_sampleW.gfa"
+
+mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
+./utils/clean_outputs.sh "${DATASET}" PGGB
+
+# Build the concatenated FASTA used for PGGB.
+cat "input_data/${DATASET}/ASSEMBLIES/${DATASET_SHORT}-"*.fa > "${TOTAL_FA}"
+
+# Rewrite headers into PanSN format.
+# Choose the header rewrite that matches the dataset naming convention:
+# - C4-style FASTA headers like SAMPLE_HAP -> >SAMPLE#HAP#<DATASET_SHORT>
+# - KIR-style per-file naming is often easier with a file-by-file loop
+awk -v locus="${DATASET_SHORT}" '
 /^>/ {
   h = substr($0, 2)
   if (match(h, /^(.*)_([0-9]+)$/, a)) {
-    print ">" a[1] "#" a[2] "#C4"
+    print ">" a[1] "#" a[2] "#" locus
   } else {
     print "ERROR: unrecognized header -> " h > "/dev/stderr"
     exit 1
@@ -218,21 +290,23 @@ awk '
   next
 }
 { print }
-' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa
+' "${TOTAL_FA}" > "${PAN_INPUT}"
 
-docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa"
-/usr/bin/time -v -o results/C4_TEST/PGGB/logs/timing.log -- docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa -n 96 -t ${THREADS} -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/PGGB
-python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
-# Canonical output: results/C4_TEST/PGGB/outputs/pggb_C4.gfa
+docker compose run --rm pggb bash -lc "samtools faidx /${PAN_INPUT}"
+/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+docker compose run --rm pggb bash -lc \
+"pggb -i /${PAN_INPUT} -n ${PGGB_N} -t ${THREADS} -o /${OUTPUT_DIR}" \
+> "${LOG_DIR}/execution.log" 2>&1
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/organize_outputs.py PGGB "${OUTPUT_DIR}"
+# Canonical output: ${CANONICAL_GFA}
 
-# Cross-tool normalization for C4 only:
-# - keep GRCh38#0#C4 as the only P-line
-# - convert every non-reference sample path to a W-line
-awk '
+# Derived output (optional, use when the canonical GFA still contains sample P-lines):
+# - keep ${REFERENCE_PAN_NAME} as the only P-line
+# - convert every other P-line into a W-line when possible
+awk -v ref="${REFERENCE_PAN_NAME}" '
 BEGIN {
   FS = OFS = "	"
-  ref = "GRCh38#0#C4"
 }
 $1 == "S" {
   seglen[$2] = length($3)
@@ -260,7 +334,6 @@ $1 != "P" {
   sample = a[1]
   hap = a[2]
   seqid = a[3]
-
   n = split(path, steps, ",")
   walk = ""
   endpos = 0
@@ -289,18 +362,21 @@ $1 != "P" {
 
   print "W", sample, hap, seqid, 0, endpos - 1, walk
 }
-''' results/C4_TEST/PGGB/outputs/pggb_C4.gfa > results/C4_TEST/PGGB/outputs/pggb_C4_refP_sampleW.gfa
+' "${CANONICAL_GFA}" > "${DERIVED_GFA}"
 
-awk '''BEGIN{h=0;s=0;l=0;p=0;w=0} /^H	/{h++} /^S	/{s++} /^L	/{l++} /^P	/{p++} /^W	/{w++} END{print "H="h,"S="s,"L="l,"P="p,"W="w}'''   results/C4_TEST/PGGB/outputs/pggb_C4_refP_sampleW.gfa
-# Expected for C4_TEST normalized view: P=1, W=95
+awk 'BEGIN{h=0;s=0;l=0;p=0;w=0} /^H	/{h++} /^S	/{s++} /^L	/{l++} /^P	/{p++} /^W	/{w++} END{print "H="h,"S="s,"L="l,"P="p,"W="w}' \
+  "${DERIVED_GFA}"
+# Expected when derivation applies cleanly: P=1, W=<number_of_non_reference_paths>
 ```
 
-### POASTA (C4_TEST)
+---
+
+### POASTA (Parameterized)
 
 POASTA performs partial-order multiple sequence alignment from a single
-multi-FASTA. It reuses the same PanSN-headered concatenation produced for PGGB
-(`c4_total_pansn.fa`) so sample names match the other tools. Sample paths are
-emitted as `W` lines (the PanSN string is preserved in the seqid field).
+multi-FASTA. It should reuse the same PanSN-headered concatenation produced for
+PGGB so sample names stay aligned across tools. Sample paths are emitted as `W`
+lines (the PanSN string is preserved in the seqid field).
 
 Note on `docker compose run -T`: POASTA needs the `-T` flag (disable pseudo-TTY
 allocation). Without it the `docker compose run` client receives `SIGTTOU` and
@@ -312,67 +388,76 @@ an empty body there means the run succeeded, not that it failed.
 
 ```bash
 cd /home/azureuser/constructionBS
-mkdir -p results/C4_TEST/POASTA/{logs,outputs}
-./utils/clean_outputs.sh C4_TEST POASTA
 
-# Reuse the PGGB PanSN concatenation; regenerate it only if missing.
-if [ ! -s input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa ]; then
-  cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
-  awk '
-  /^>/ {
-    h = substr($0, 2)
-    if (match(h, /^(.*)_([0-9]+)$/, a)) {
-      print ">" a[1] "#" a[2] "#C4"
-    } else {
-      print "ERROR: unrecognized header -> " h > "/dev/stderr"
-      exit 1
-    }
-    next
-  }
-  { print }
-  ' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa
+DATASET="C4_TEST"
+DATASET_SHORT="C4"  # e.g. C4, KIR, MHC
+RUN_DIR="results/${DATASET}/POASTA"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+AUX_DIR="input_data/${DATASET}/AUXILIARY_INPUTS"
+PAN_INPUT="${AUX_DIR}/${DATASET_SHORT,,}_total_pansn.fa"
+
+mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
+./utils/clean_outputs.sh "${DATASET}" POASTA
+
+# Reuse the PGGB PanSN concatenation; create it first with the PGGB section.
+if [ ! -s "${PAN_INPUT}" ]; then
+  echo "Missing ${PAN_INPUT}; create it with the PGGB PanSN-preparation step first." >&2
+  exit 1
 fi
 
-# time -v stays OUTSIDE (same as every other tool); the only difference is `-T`.
-# align builds the native .poasta graph; two `view` passes derive GFA + MSA
-# without re-aligning.
-/usr/bin/time -v -o results/C4_TEST/POASTA/logs/timing.log -- \
+/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
 docker compose run --rm -T poasta bash -lc "\
-poasta align -O poasta -o /results/C4_TEST/POASTA/outputs/poasta_C4.poasta /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa && \
-poasta view -O gfa -o /results/C4_TEST/POASTA/outputs/poasta_C4.gfa /results/C4_TEST/POASTA/outputs/poasta_C4.poasta && \
-poasta view -O fasta -o /results/C4_TEST/POASTA/outputs/poasta_C4_msa.fasta /results/C4_TEST/POASTA/outputs/poasta_C4.poasta" \
-> results/C4_TEST/POASTA/logs/execution.log 2>&1
+poasta align -O poasta -o /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta /${PAN_INPUT} && \
+poasta view -O gfa -o /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.gfa /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta && \
+poasta view -O fasta -o /${OUTPUT_DIR}/poasta_${DATASET_SHORT}_msa.fasta /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta" \
+> "${LOG_DIR}/execution.log" 2>&1
 
-sudo chown -R $USER:$USER results/C4_TEST/POASTA
-python utils/organize_outputs.py POASTA results/C4_TEST/POASTA/outputs
-# Canonical output: results/C4_TEST/POASTA/outputs/poasta_C4.gfa
-# Auxiliary outputs: poasta_C4.poasta (native graph), poasta_C4_msa.fasta (MSA)
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/organize_outputs.py POASTA "${OUTPUT_DIR}"
+# Canonical output: ${OUTPUT_DIR}/poasta_${DATASET_SHORT}.gfa
+# Auxiliary outputs:
+# - ${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta
+# - ${OUTPUT_DIR}/poasta_${DATASET_SHORT}_msa.fasta
 ```
 
-### MinigraphCactus (C4_TEST)
+---
+
+### MinigraphCactus (Parameterized)
 
 ```bash
 cd /home/azureuser/constructionBS
-mkdir -p results/C4_TEST/MinigraphCactus/{logs,outputs}
-./utils/clean_outputs.sh C4_TEST MinigraphCactus
-python utils/make_minigraphcactus_seqfile.py C4_TEST
-/usr/bin/time -v -o results/C4_TEST/MinigraphCactus/logs/timing.log -- \
-docker compose run --rm minigraphcactus bash -lc "cactus-pangenome /results/C4_TEST/MinigraphCactus/outputs/jobstore /results/C4_TEST/MinigraphCactus/outputs/c4_test_seqfile.txt --outDir /results/C4_TEST/MinigraphCactus/outputs --outName minigraphcactus_C4 --reference C4-GRCh38 --gfa clip --batchSystem single_machine --maxCores 32" \
-> results/C4_TEST/MinigraphCactus/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/MinigraphCactus
-python utils/organize_outputs.py MinigraphCactus results/C4_TEST/MinigraphCactus/outputs
-# Canonical outputs:
-# - results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa.gz
-# - results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa
 
-# Derived encodings from the canonical GFA for visualization only.
-# Keep the canonical file unchanged. The reference normalization below replaces
-# only `W  C4-GRCh38` with `P  C4-GRCh38` and leaves every other sample `W`
-# unchanged.
-cp results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
-  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_wlines.gfa
-awk -v ref="C4-GRCh38" -F '\t' '
-BEGIN { OFS="\t" }
+DATASET="C4_TEST"
+DATASET_SHORT="C4"         # e.g. C4, KIR, MHC
+REFERENCE_NAME="C4-GRCh38" # exact W-line sample name to preserve as derived P
+MAX_CORES="32"
+RUN_DIR="results/${DATASET}/MinigraphCactus"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+SEQFILE_PATH="${OUTPUT_DIR}/${DATASET,,}_seqfile.txt"
+CANONICAL_GFA="${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}.gfa"
+
+mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
+./utils/clean_outputs.sh "${DATASET}" MinigraphCactus
+python utils/make_minigraphcactus_seqfile.py "${DATASET}"
+/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+docker compose run --rm minigraphcactus bash -lc \
+"cactus-pangenome /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} --outDir /${OUTPUT_DIR} --outName minigraphcactus_${DATASET_SHORT} --reference ${REFERENCE_NAME} --gfa clip --batchSystem single_machine --maxCores ${MAX_CORES}" \
+> "${LOG_DIR}/execution.log" 2>&1
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/organize_outputs.py MinigraphCactus "${OUTPUT_DIR}"
+# Canonical outputs:
+# - ${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}.gfa.gz
+# - ${CANONICAL_GFA}
+
+# Derived outputs (optional, keep the canonical GFA unchanged):
+# - ${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_wlines.gfa
+# - ${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_ref_as_path.gfa
+cp "${CANONICAL_GFA}" \
+  "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_wlines.gfa"
+awk -v ref="${REFERENCE_NAME}" -F '	' '
+BEGIN { OFS="	" }
 $1=="W" && $2==ref {
   walk=$7
   gsub(/>/, ",", walk)
@@ -396,13 +481,14 @@ END {
     exit 1
   }
 }
-' results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
-  > results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_ref_as_path.gfa
+' "${CANONICAL_GFA}" \
+  > "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_ref_as_path.gfa"
 sudo chown $USER:$USER \
-  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa \
-  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_with_wlines.gfa \
-  results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4_ref_as_path.gfa
+  "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_wlines.gfa" \
+  "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_ref_as_path.gfa"
 ```
+
+---
 
 ### MC_vg (Parameterized)
 
@@ -531,34 +617,50 @@ mv \
   "${ARTIFACTS_DIR}/"
 ```
 
-### Cactus (C4_TEST)
+---
+
+### Cactus (Parameterized)
 
 ```bash
 cd /home/azureuser/constructionBS
-mkdir -p results/C4_TEST/Cactus/{logs,outputs}
-./utils/clean_outputs.sh C4_TEST Cactus
-python utils/make_cactus_seqfile.py C4_TEST
-/usr/bin/time -v -o results/C4_TEST/Cactus/logs/timing.log -- \
-docker compose run --rm cactus bash -lc "cactus /results/C4_TEST/Cactus/outputs/jobstore /results/C4_TEST/Cactus/outputs/c4_test_seqfile.txt /results/C4_TEST/Cactus/outputs/cactus_C4.hal --batchSystem single_machine --maxCores 32" \
-> results/C4_TEST/Cactus/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/Cactus
-python utils/organize_outputs.py Cactus results/C4_TEST/Cactus/outputs
+
+DATASET="C4_TEST"
+DATASET_SHORT="C4"         # e.g. C4, KIR, MHC
+REFERENCE_NAME="C4-GRCh38" # exact W-line sample name to preserve as derived P
+MAX_CORES="32"
+RUN_DIR="results/${DATASET}/Cactus"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+SEQFILE_PATH="${OUTPUT_DIR}/${DATASET,,}_seqfile.txt"
+CANONICAL_GFA="${OUTPUT_DIR}/cactus_${DATASET_SHORT}.gfa"
+CANONICAL_HAL="${OUTPUT_DIR}/cactus_${DATASET_SHORT}.hal"
+
+mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
+./utils/clean_outputs.sh "${DATASET}" Cactus
+python utils/make_cactus_seqfile.py "${DATASET}"
+/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+docker compose run --rm cactus bash -lc \
+"cactus /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} /${CANONICAL_HAL} --batchSystem single_machine --maxCores ${MAX_CORES}" \
+> "${LOG_DIR}/execution.log" 2>&1
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/organize_outputs.py Cactus "${OUTPUT_DIR}"
 
 # Export to VG/GFA from the HAL output.
 # organize_outputs.py normalizes and preserves these files if they already
 # exist, but it does not perform the HAL -> VG/GFA conversion itself.
-docker compose run --rm cactus bash -lc "hal2vg /results/C4_TEST/Cactus/outputs/cactus_C4.hal > /results/C4_TEST/Cactus/outputs/cactus_C4.vg"
-docker compose run --rm cactus bash -lc "vg view -g /results/C4_TEST/Cactus/outputs/cactus_C4.vg > /results/C4_TEST/Cactus/outputs/cactus_C4.gfa"
-# Canonical output: results/C4_TEST/Cactus/outputs/cactus_C4.gfa
+docker compose run --rm cactus bash -lc \
+"hal2vg /${CANONICAL_HAL} > /${OUTPUT_DIR}/cactus_${DATASET_SHORT}.vg"
+docker compose run --rm cactus bash -lc \
+"vg view -g /${OUTPUT_DIR}/cactus_${DATASET_SHORT}.vg > /${CANONICAL_GFA}"
+# Canonical output: ${CANONICAL_GFA}
 
-# Derived encodings from the canonical GFA for visualization only.
-# Keep the canonical file unchanged. The reference normalization below replaces
-# only `W  C4-GRCh38` with `P  C4-GRCh38` and leaves every other sample `W`
-# unchanged.
-cp results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
-  results/C4_TEST/Cactus/outputs/cactus_C4_with_wlines.gfa
-awk -v ref="C4-GRCh38" -F '\t' '
-BEGIN { OFS="\t" }
+# Derived outputs (optional, keep the canonical GFA unchanged):
+# - ${OUTPUT_DIR}/cactus_${DATASET_SHORT}_with_wlines.gfa
+# - ${OUTPUT_DIR}/cactus_${DATASET_SHORT}_ref_as_path.gfa
+cp "${CANONICAL_GFA}" \
+  "${OUTPUT_DIR}/cactus_${DATASET_SHORT}_with_wlines.gfa"
+awk -v ref="${REFERENCE_NAME}" -F '	' '
+BEGIN { OFS="	" }
 $1=="W" && $2==ref {
   walk=$7
   gsub(/>/, ",", walk)
@@ -582,39 +684,52 @@ END {
     exit 1
   }
 }
-' results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
-  > results/C4_TEST/Cactus/outputs/cactus_C4_ref_as_path.gfa
-sudo chown -R $USER:$USER results/C4_TEST/Cactus
+' "${CANONICAL_GFA}" \
+  > "${OUTPUT_DIR}/cactus_${DATASET_SHORT}_ref_as_path.gfa"
+sudo chown -R $USER:$USER "${RUN_DIR}"
 ```
 
-### ProgressiveCactus (C4_TEST)
+---
+
+### ProgressiveCactus (Parameterized)
 
 ```bash
 cd /home/azureuser/constructionBS
-mkdir -p results/C4_TEST/ProgressiveCactus/{logs,outputs}
-./utils/clean_outputs.sh C4_TEST ProgressiveCactus
-python utils/make_cactus_seqfile.py C4_TEST --output results/C4_TEST/ProgressiveCactus/outputs/c4_test_seqfile.txt
-/usr/bin/time -v -o results/C4_TEST/ProgressiveCactus/logs/timing.log -- \
-docker compose run --rm progressivecactus bash -lc "cactus /results/C4_TEST/ProgressiveCactus/outputs/jobstore /results/C4_TEST/ProgressiveCactus/outputs/c4_test_seqfile.txt /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal --batchSystem single_machine --maxCores 32" \
-> results/C4_TEST/ProgressiveCactus/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
-python utils/organize_outputs.py ProgressiveCactus results/C4_TEST/ProgressiveCactus/outputs
+
+DATASET="C4_TEST"
+DATASET_SHORT="C4"         # e.g. C4, KIR, MHC
+REFERENCE_NAME="C4-GRCh38" # exact W-line sample name to preserve as derived P
+MAX_CORES="32"
+RUN_DIR="results/${DATASET}/ProgressiveCactus"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+SEQFILE_PATH="${OUTPUT_DIR}/${DATASET,,}_seqfile.txt"
+CANONICAL_GFA="${OUTPUT_DIR}/progressivecactus_${DATASET_SHORT}.gfa"
+CANONICAL_HAL="${OUTPUT_DIR}/progressivecactus_${DATASET_SHORT}.hal"
+
+mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
+./utils/clean_outputs.sh "${DATASET}" ProgressiveCactus
+python utils/make_cactus_seqfile.py "${DATASET}" --output "${SEQFILE_PATH}"
+/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+docker compose run --rm progressivecactus bash -lc \
+"cactus /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} /${CANONICAL_HAL} --batchSystem single_machine --maxCores ${MAX_CORES}" \
+> "${LOG_DIR}/execution.log" 2>&1
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/organize_outputs.py ProgressiveCactus "${OUTPUT_DIR}"
 
 # Export to VG/GFA from the HAL output.
 # organize_outputs.py normalizes and preserves these files if they already
 # exist, but it does not perform the HAL -> VG/GFA conversion itself.
-docker compose run --rm progressivecactus bash -lc "hal2vg /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg"
-docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa"
-# Canonical output: results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa
+docker compose run --rm progressivecactus bash -lc \
+"hal2vg /${CANONICAL_HAL} > /${OUTPUT_DIR}/progressivecactus_${DATASET_SHORT}.vg"
+docker compose run --rm progressivecactus bash -lc \
+"vg view -g /${OUTPUT_DIR}/progressivecactus_${DATASET_SHORT}.vg > /${CANONICAL_GFA}"
+# Canonical output: ${CANONICAL_GFA}
 
-# Derived encodings from the canonical GFA for visualization only.
-# Keep the canonical file unchanged. The reference normalization below replaces
-# only `W  C4-GRCh38` with `P  C4-GRCh38` and leaves every other sample `W`
-# unchanged.
-cp results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa \
-  results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_with_wlines.gfa
-awk -v ref="C4-GRCh38" -F '\t' '
-BEGIN { OFS="\t" }
+# Derived output (optional, keep the canonical GFA unchanged):
+# - ${OUTPUT_DIR}/progressivecactus_${DATASET_SHORT}_with_plines.gfa
+awk -v ref="${REFERENCE_NAME}" -F '	' '
+BEGIN { OFS="	" }
 $1=="W" && $2==ref {
   walk=$7
   gsub(/>/, ",", walk)
@@ -638,10 +753,12 @@ END {
     exit 1
   }
 }
-' results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa \
-  > results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4_ref_as_path.gfa
-sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
+' "${CANONICAL_GFA}" \
+  > "${OUTPUT_DIR}/progressivecactus_${DATASET_SHORT}_with_plines.gfa"
+sudo chown -R $USER:$USER "${RUN_DIR}"
 ```
+
+---
 
 ### LCPan MC vg/vgx (Parameterized)
 
@@ -650,54 +767,48 @@ cd /home/azureuser/constructionBS
 
 # Configuration: change only these variables for the current dataset.
 DATASET="KIR_TEST"
-REFERENCE_FASTA_SOURCE="input_data/${DATASET}/ASSEMBLIES/KIR-00GRCh38.fa"
+DATASET_SHORT="KIR"  # e.g. C4, KIR, MHC
+REFERENCE_FASTA_SOURCE="input_data/${DATASET}/ASSEMBLIES/${DATASET_SHORT}-00GRCh38.fa"
 CACTUS_VCF_GZ="results/${DATASET}/MC_vg/outputs/result_cactus_new.vcf.gz"
+THREADS="32"
 
 LCPAN_DIR="results/${DATASET}/LCPan"
-MC_VG_RUN_DIR="${LCPAN_DIR}/mc_vg"
-MC_VGX_RUN_DIR="${LCPAN_DIR}/mc_vgx"
-
 REF_FASTA_FOR_LCPAN="${LCPAN_DIR}/inputs/reference_from_cactus.fa"
 VCF_FOR_LCPAN="${LCPAN_DIR}/inputs/variants_from_cactus.vcf"
 
-VG_OUTPUT_DIR="${MC_VG_RUN_DIR}/outputs"
-VG_LOG_DIR="${MC_VG_RUN_DIR}/logs"
-VGX_OUTPUT_DIR="${MC_VGX_RUN_DIR}/outputs"
-VGX_LOG_DIR="${MC_VGX_RUN_DIR}/logs"
+for VARIANT in mc_vg mc_vgx; do
+  if [ "${VARIANT}" = "mc_vg" ]; then
+    MODE_FLAG="-vg"
+  else
+    MODE_FLAG="-vgx"
+  fi
 
-mkdir -p \
-  "${LCPAN_DIR}/inputs" \
-  "${VG_OUTPUT_DIR}" \
-  "${VG_LOG_DIR}" \
-  "${VGX_OUTPUT_DIR}" \
-  "${VGX_LOG_DIR}"
-sudo chown -R $USER:$USER "${LCPAN_DIR}"
+  RUN_DIR="${LCPAN_DIR}/${VARIANT}"
+  OUTPUT_DIR="${RUN_DIR}/outputs"
+  LOG_DIR="${RUN_DIR}/logs"
+  OUT_PREFIX="/${OUTPUT_DIR}/lcpan_from_cactus"
 
-VCF_CONTIG="$(
-  gzip -dc "${CACTUS_VCF_GZ}" \
-  | awk -F'[=,>]' '/^##contig=<ID=/{print $3; exit}'
-)"
+  mkdir -p "${LCPAN_DIR}/inputs" "${OUTPUT_DIR}" "${LOG_DIR}"
+  sudo chown -R $USER:$USER "${LCPAN_DIR}"
 
-awk -v contig="${VCF_CONTIG}" 'NR==1{print ">" contig; next} {print}' \
-  "${REFERENCE_FASTA_SOURCE}" \
-  > "${REF_FASTA_FOR_LCPAN}"
+  VCF_CONTIG="$(
+    gzip -dc "${CACTUS_VCF_GZ}" \
+    | awk -F'[=,>]' '/^##contig=<ID=/{print $3; exit}'
+  )"
 
-docker compose run --rm pggb bash -lc \
-"samtools faidx /${REF_FASTA_FOR_LCPAN}"
+  awk -v contig="${VCF_CONTIG}" 'NR==1{print ">" contig; next} {print}' \
+    "${REFERENCE_FASTA_SOURCE}" > "${REF_FASTA_FOR_LCPAN}"
 
-gzip -dc "${CACTUS_VCF_GZ}" > "${VCF_FOR_LCPAN}"
+  docker compose run --rm pggb bash -lc "samtools faidx /${REF_FASTA_FOR_LCPAN}"
+  gzip -dc "${CACTUS_VCF_GZ}" > "${VCF_FOR_LCPAN}"
 
-/usr/bin/time -v -o "${VG_LOG_DIR}/timing.log" -- \
-docker compose run --rm lcpan bash -lc \
-"/lcpan/bin/lcpan -vg --gfa -t 32 \
- -r /${REF_FASTA_FOR_LCPAN} \
- -v /${VCF_FOR_LCPAN} \
- -p /${VG_OUTPUT_DIR}/lcpan_from_cactus \
- && /lcpan/lcpan-merge.sh /${VG_OUTPUT_DIR}/lcpan_from_cactus.log" \
-> "${VG_LOG_DIR}/execution.log" 2>&1
+  /usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+  docker compose run --rm lcpan bash -lc \
+  "/lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r /${REF_FASTA_FOR_LCPAN} -v /${VCF_FOR_LCPAN} -p ${OUT_PREFIX} && /lcpan/lcpan-merge.sh ${OUT_PREFIX}.log" \
+  > "${LOG_DIR}/execution.log" 2>&1
 
-mkdir -p "${VG_OUTPUT_DIR}/artifacts"
-awk '
+  mkdir -p "${OUTPUT_DIR}/artifacts"
+  awk '
 /^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
 /^L\t/ { lines[++n] = $0; next }
 { lines[++n] = $0 }
@@ -708,51 +819,26 @@ END {
     print lines[i]
   }
 }
-' "${VG_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
-> "${VG_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa"
+' "${OUTPUT_DIR}/lcpan_from_cactus.gfa" > "${OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa"
 
-docker compose run --rm progressivecactus bash -lc \
-"vg convert -g -f -W /${VG_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa > /${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
-if [ -s "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" ]; then
-  mv "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" \
-    "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa"
-else
-  rm -f "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
-  echo "[WARN] Skipping lcpan_from_cactus_with_plines.gfa for from_MC_vg; vg convert -W may exceed available RAM on larger graphs." >&2
-fi
-cp "${VG_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
-  "${VG_OUTPUT_DIR}/lcpan_from_cactus_with_wlines.gfa"
+  docker compose run --rm progressivecactus bash -lc \
+  "vg convert -g -f -W /${OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa > /${OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
 
-/usr/bin/time -v -o "${VGX_LOG_DIR}/timing.log" -- \
-docker compose run --rm lcpan bash -lc \
-"/lcpan/bin/lcpan -vgx --gfa -t 32 \
- -r /${REF_FASTA_FOR_LCPAN} \
- -v /${VCF_FOR_LCPAN} \
- -p /${VGX_OUTPUT_DIR}/lcpan_from_cactus \
- && /lcpan/lcpan-merge.sh /${VGX_OUTPUT_DIR}/lcpan_from_cactus.log" \
-> "${VGX_LOG_DIR}/execution.log" 2>&1
+  if [ -s "${OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" ]; then
+    mv "${OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" \
+      "${OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa"
+  else
+    rm -f "${OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
+    if [ "${VARIANT}" = "mc_vg" ]; then
+      echo "[WARN] Skipping lcpan_from_cactus_with_plines.gfa for ${VARIANT}; vg convert -W may exceed available RAM on larger graphs." >&2
+    else
+      echo "[WARN] Empty with_plines output for ${VARIANT}." >&2
+    fi
+  fi
 
-mkdir -p "${VGX_OUTPUT_DIR}/artifacts"
-awk '
-/^S\t/ { ids[$2] = 1; lines[++n] = $0; next }
-/^L\t/ { lines[++n] = $0; next }
-{ lines[++n] = $0 }
-END {
-  for (i = 1; i <= n; i++) {
-    split(lines[i], f, "\t")
-    if (f[1] == "L" && (!(f[2] in ids) || !(f[4] in ids))) continue
-    print lines[i]
-  }
-}
-' "${VGX_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
-> "${VGX_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa"
-
-docker compose run --rm progressivecactus bash -lc \
-"vg convert -g -f -W /${VGX_OUTPUT_DIR}/artifacts/lcpan_from_cactus_vg_ready.gfa > /${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp"
-mv "${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa.tmp" \
-  "${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_plines.gfa"
-cp "${VGX_OUTPUT_DIR}/lcpan_from_cactus.gfa" \
-  "${VGX_OUTPUT_DIR}/lcpan_from_cactus_with_wlines.gfa"
+  cp "${OUTPUT_DIR}/lcpan_from_cactus.gfa" \
+    "${OUTPUT_DIR}/lcpan_from_cactus_with_wlines.gfa"
+done
 
 sudo chown -R $USER:$USER "${LCPAN_DIR}"
 ```
@@ -761,6 +847,10 @@ For `LCPan/from_MC_vg`, treat `lcpan_from_cactus_with_plines.gfa` as optional.
 If `vg convert -W` is OOM-killed on larger graphs, keep the canonical GFA plus
 `lcpan_from_cactus_with_wlines.gfa` and consider the run valid.
 
+- Permission issues after container runs:
+  ```bash
+  sudo chown -R $USER:$USER results/<DATASET>/<TOOL>
+  ```
 - Permission issues after container runs:
   ```bash
   sudo chown -R $USER:$USER results/<DATASET>/<TOOL>
