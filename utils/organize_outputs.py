@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import argparse
-import gzip
+import subprocess
 import shutil
 
 try:
@@ -104,6 +104,12 @@ TOOL_SPECS = {
         optional_top_level_suffixes=(".poasta", "_msa.fasta"),
         compressed=False,
     ),
+    "Theseus": ToolOutputSpec(
+        tool_name="Theseus",
+        final_output_pattern="*.gfa",
+        canonical_uncompressed_suffix=".gfa",
+        compressed=False,
+    ),
 }
 
 
@@ -181,18 +187,18 @@ def find_final_output(outputs_dir: Path, spec: ToolOutputSpec) -> Path:
 
 def write_decompressed_copy(source_gz: Path, target_gfa: Path) -> None:
     """
-    Write an uncompressed GFA copy from a gzip-compressed source graph.
+    Write an uncompressed GFA copy from a bgzip-compressed source graph.
     """
-    with gzip.open(source_gz, "rb") as src, target_gfa.open("wb") as dst:
-        shutil.copyfileobj(src, dst)
+    with target_gfa.open("wb") as dst:
+        subprocess.run(["bgzip", "-dc", str(source_gz)], check=True, stdout=dst)
 
 
 def write_compressed_copy(source_gfa: Path, target_gz: Path) -> None:
     """
-    Write a gzip-compressed copy from an uncompressed GFA source graph.
+    Write a bgzip-compressed copy from an uncompressed GFA source graph.
     """
-    with source_gfa.open("rb") as src, gzip.open(target_gz, "wb") as dst:
-        shutil.copyfileobj(src, dst)
+    with source_gfa.open("rb") as src, target_gz.open("wb") as dst:
+        subprocess.run(["bgzip", "-c"], check=True, stdin=src, stdout=dst)
 
 
 def reset_artifacts_dir(outputs_dir: Path) -> Path:

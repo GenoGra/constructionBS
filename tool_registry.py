@@ -88,7 +88,7 @@ TOOL_REGISTRY = {
             "dockerfile": "Dockerfiles/Theseus/Dockerfile",
             "command": (
                 "mkdir -p /results && "
-                "theseus_msa --help > /results/theseus_help.txt 2>&1 || true"
+                "theseus_msa > /results/theseus_help.txt 2>&1 || true"
             ),
         },
         "requirements": {"required_dirs": ["ASSEMBLIES", "META"]},

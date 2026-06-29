@@ -222,15 +222,15 @@ Current canonical encodings in this repository:
 - `Minigraph`: canonical graph has no `P` or `W` records; only the reference
   path embedded in the rGFA tags can be materialized from the current files
 
-For tools whose canonical `GFA` already uses `W`-lines (`Cactus`,
-`ProgressiveCactus`, and `MinigraphCactus`), keep an explicit `W`-line copy and
-derive the `P`-line version with:
+For tools whose canonical `GFA` already uses `W`-lines (`Cactus` and `ProgressiveCactus`), keep an explicit `W`-line copy and derive the `P`-line version with:
 
 ```bash
 cp <canonical_graph.gfa> <graph_with_wlines.gfa>
 docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W <container_canonical_graph.gfa> > <container_graph_with_plines.gfa>"
 sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
 ```
+
+For `MinigraphCactus`, the canonical `GFA` also uses `W`-lines, but the standard post-processing in this repository materializes only the derived `P`-line view.
 
 For tools whose canonical `GFA` already uses `P`-lines (`PGGB`, and the
 current reference-only `LCPan` outputs), keep an explicit `P`-line copy and
@@ -460,10 +460,10 @@ This produces:
 Notes from the validated runs:
 - `MinigraphCactus` writes many intermediate files and directories, including `HAL`, `PAF/GAF`, stats, and chromosomal subproblems
 - the final graph to keep is the top-level `*.gfa.gz` output produced by `cactus-pangenome`
+- inspect or decompress compressed workflow artifacts with `bgzip -dc`
 - `utils/organize_outputs.py MinigraphCactus ...` keeps both a canonical compressed graph and an uncompressed `GFA` copy for inspection
-- if canonical `*_with_wlines.gfa` or `*_with_plines.gfa` files already exist, rerunning `organize_outputs.py` republishes them at the top level with dataset-specific names such as `minigraphcactus_C4_with_wlines.gfa`
-- the canonical `GFA` already uses `W`-lines; derive the `P`-line version using
-  the shared commands from `Common GFA Line Encodings`
+- if a canonical `*_with_plines.gfa` file already exists, rerunning `organize_outputs.py` republishes it at the top level with a dataset-specific name such as `minigraphcactus_C4_with_plines.gfa`
+- the canonical `GFA` already uses `W`-lines; in the standard MinigraphCactus post-processing, only the derived `P`-line view is materialized
 - some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
 
 For `Cactus` (distinct from `MinigraphCactus`), use the `cactus` entrypoint

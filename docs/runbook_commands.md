@@ -459,11 +459,8 @@ python utils/organize_outputs.py MinigraphCactus "${OUTPUT_DIR}"
 # - ${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}.gfa.gz
 # - ${CANONICAL_GFA}
 
-# Derived outputs (optional, keep the canonical GFA unchanged):
-# - ${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_wlines.gfa
-# - ${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_ref_as_path.gfa
-cp "${CANONICAL_GFA}" \
-  "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_wlines.gfa"
+# Derived output (optional, keep the canonical GFA unchanged):
+# - ${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_plines.gfa
 awk -v ref="${REFERENCE_NAME}" -F '	' '
 BEGIN { OFS="	" }
 $1=="W" && $2==ref {
@@ -490,10 +487,9 @@ END {
   }
 }
 ' "${CANONICAL_GFA}" \
-  > "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_ref_as_path.gfa"
+  > "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_plines.gfa"
 sudo chown $USER:$USER \
-  "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_wlines.gfa" \
-  "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_ref_as_path.gfa"
+  "${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}_with_plines.gfa"
 ```
 
 ---
@@ -553,7 +549,7 @@ sudo chown -R $USER:$USER "${RUN_DIR}"
 # The FASTA header must match the contig name used in the cactus-produced VCF,
 # so derive it dynamically instead of hardcoding dataset-specific values.
 VCF_CONTIG="$(
-  gzip -dc "${OUTPUT_DIR}/${OUT_NAME}.vcf.gz" \
+  bgzip -dc "${OUTPUT_DIR}/${OUT_NAME}.vcf.gz" \
   | awk -F'[=,>]' '/^##contig=<ID=/{print $3; exit}'
 )"
 
@@ -595,7 +591,7 @@ mv "${OUTPUT_DIR}/result_autoindex.gfa.tmp" \
 sudo chown -R $USER:$USER "${RUN_DIR}"
 
 # Create an editor-friendly uncompressed copy of the cactus GFA.
-gzip -dc "${OUTPUT_DIR}/${OUT_NAME}.gfa.gz" \
+bgzip -dc "${OUTPUT_DIR}/${OUT_NAME}.gfa.gz" \
   > "${OUTPUT_DIR}/${OUT_NAME}.gfa"
 
 # Final organization:
@@ -665,8 +661,6 @@ docker compose run --rm cactus bash -lc \
 # Derived outputs (optional, keep the canonical GFA unchanged):
 # - ${OUTPUT_DIR}/cactus_${DATASET_SHORT}_with_wlines.gfa
 # - ${OUTPUT_DIR}/cactus_${DATASET_SHORT}_ref_as_path.gfa
-cp "${CANONICAL_GFA}" \
-  "${OUTPUT_DIR}/cactus_${DATASET_SHORT}_with_wlines.gfa"
 awk -v ref="${REFERENCE_NAME}" -F '	' '
 BEGIN { OFS="	" }
 $1=="W" && $2==ref {
@@ -693,7 +687,7 @@ END {
   }
 }
 ' "${CANONICAL_GFA}" \
-  > "${OUTPUT_DIR}/cactus_${DATASET_SHORT}_ref_as_path.gfa"
+  > "${OUTPUT_DIR}/cactus_${DATASET_SHORT}_with_plines.gfa"
 sudo chown -R $USER:$USER "${RUN_DIR}"
 ```
 
@@ -800,7 +794,7 @@ for VARIANT in mc_vg mc_vgx; do
   sudo chown -R $USER:$USER "${LCPAN_DIR}"
 
   VCF_CONTIG="$(
-    gzip -dc "${CACTUS_VCF_GZ}" \
+    bgzip -dc "${CACTUS_VCF_GZ}" \
     | awk -F'[=,>]' '/^##contig=<ID=/{print $3; exit}'
   )"
 
@@ -808,7 +802,7 @@ for VARIANT in mc_vg mc_vgx; do
     "${REFERENCE_FASTA_SOURCE}" > "${REF_FASTA_FOR_LCPAN}"
 
   docker compose run --rm pggb bash -lc "samtools faidx /${REF_FASTA_FOR_LCPAN}"
-  gzip -dc "${CACTUS_VCF_GZ}" > "${VCF_FOR_LCPAN}"
+  bgzip -dc "${CACTUS_VCF_GZ}" > "${VCF_FOR_LCPAN}"
 
   /usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
   docker compose run --rm lcpan bash -lc \

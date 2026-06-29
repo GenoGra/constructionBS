@@ -8,69 +8,19 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 import re
-
-try:
-    from utils.dataset_metadata import get_dataset_short_name
-except ModuleNotFoundError:
-    from dataset_metadata import get_dataset_short_name
-
-
-STANDARD_TOOL_ORDER = [
-    "PGGB",
-    "Minigraph",
-    "MinigraphCactus",
-    "MC_vg",
-    "Cactus",
-    "ProgressiveCactus",
-    "POASTA",
-    "Theseus",
-]
-
-LCPAN_GRAPH_CANDIDATES = {
-    "pggb_vg": (
-        "LCPan/pggb_vg/outputs/lcpan_{dataset_short}.gfa",
-        "LCPan/outputs/lcpan_{dataset_short}.gfa",
-    ),
-    "pggb_vgx": (
-        "LCPan/pggb_vgx/outputs/lcpan_{dataset_short}.gfa",
-        "LCPan/outputs_vgx/lcpan_{dataset_short}.gfa",
-    ),
-    "from_MC_vg": (
-        "LCPan/mc_vg/outputs/lcpan_{dataset_short}.gfa",
-        "LCPan/mc_vg/outputs/lcpan_from_cactus.gfa",
-        "LCPan/cactus_vcf_test/outputs_vg/lcpan_from_cactus.gfa",
-    ),
-    "from_MC_vgx": (
-        "LCPan/mc_vgx/outputs/lcpan_{dataset_short}.gfa",
-        "LCPan/mc_vgx/outputs/lcpan_from_cactus.gfa",
-        "LCPan/cactus_vcf_test/outputs_vgx/lcpan_from_cactus.gfa",
-    ),
-}
+import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RESULTS_ROOT = REPO_ROOT / "results"
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-CANONICAL_GRAPH_PATTERNS = {
-    "PGGB": ("outputs/pggb_{dataset_short}.gfa",),
-    "Minigraph": ("outputs/minigraph_{dataset_short}.gfa",),
-    "MinigraphCactus": (
-        "outputs/minigraphcactus_{dataset_short}.gfa",
-        "outputs/minigraphcactus_graph.gfa",
-    ),
-    "MC_vg": ("outputs/result_cactus_new.gfa",),
-    "Cactus": (
-        "outputs/cactus_{dataset_short}.gfa",
-        "outputs/cactus_alignment.gfa",
-    ),
-    "ProgressiveCactus": ("outputs/progressivecactus_{dataset_short}.gfa",),
-    "POASTA": ("outputs/poasta_{dataset_short}.gfa",),
-    "Theseus": ("outputs/theseus_{dataset_short}.gfa",),
-    "LCPan": ("outputs/lcpan_{dataset_short}.gfa",),
-}
-
-EXCLUDED_SUFFIXES = (
-    "_with_plines.gfa",
-    "_with_wlines.gfa",
+from run_config import INPUT_DATA_ROOT, RESULTS_ROOT
+from utils.dataset_metadata import get_dataset_short_name
+from utils.dataset_common import (
+    CANONICAL_GRAPH_PATTERNS,
+    EXCLUDED_GRAPH_SUFFIXES,
+    LCPAN_GRAPH_CANDIDATES,
+    STANDARD_TOOL_ORDER,
 )
 
 
@@ -105,7 +55,7 @@ def dataset_short_name(dataset_dir: Path) -> str:
     """
     Resolve the dataset short token, preferring the optional metadata override.
     """
-    input_dataset_dir = REPO_ROOT / "input_data" / dataset_dir.name
+    input_dataset_dir = INPUT_DATA_ROOT / dataset_dir.name
     return get_dataset_short_name(input_dataset_dir)
 
 
@@ -124,7 +74,7 @@ def find_canonical_graph(dataset_dir: Path, tool: str) -> Path | None:
         matches = sorted(
             path
             for path in (dataset_dir / tool).glob(resolved_pattern)
-            if not any(path.name.endswith(suffix) for suffix in EXCLUDED_SUFFIXES)
+            if not any(path.name.endswith(suffix) for suffix in EXCLUDED_GRAPH_SUFFIXES)
         )
 
         if not matches:
@@ -155,7 +105,7 @@ def find_lcpan_variant_graph(dataset_dir: Path, tool: str) -> Path | None:
     for pattern in LCPAN_GRAPH_CANDIDATES[tool]:
         candidate = dataset_dir / pattern.format(dataset_short=dataset_short)
         if candidate.exists() and not any(
-            candidate.name.endswith(suffix) for suffix in EXCLUDED_SUFFIXES
+            candidate.name.endswith(suffix) for suffix in EXCLUDED_GRAPH_SUFFIXES
         ):
             return candidate
 

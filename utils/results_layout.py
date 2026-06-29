@@ -9,6 +9,7 @@ from pathlib import Path
 import shlex
 import shutil
 
+from run_config import RESULTS_ROOT
 from utils.dataset_common import DatasetReport, MINIGRAPH_OUTPUT_FILENAME
 from utils.input_resolution import get_tool_inputs
 
@@ -17,7 +18,7 @@ def get_results_root() -> Path:
     """
     Return the root results directory.
     """
-    return Path("results")
+    return RESULTS_ROOT
 
 
 def get_dataset_results_path(dataset_name: str) -> Path:
