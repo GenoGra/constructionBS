@@ -19,7 +19,12 @@ Path and logging policy (always apply):
 - Launch every `docker compose` command from repo root: `/home/azureuser/constructionBS`
 - Inside containers, use only absolute mounted paths (`/results/...`, `/input_data/...`)
 - Never use relative container paths for graph files (for example `minigraphcactus_C4.gfa`)
-- Use `/usr/bin/time -v -o ... -- docker compose ...` for all tools to keep `timing.log` format uniform
+- Run `/usr/bin/time -v` INSIDE the container, around the tool binary itself
+  (`docker compose run ... bash -lc "/usr/bin/time -v -o /results/.../timing.log TOOL ..."`),
+  writing to an absolute mounted `/results/...` path. This measures the tool's
+  real CPU/RAM/elapsed; wrapping `docker compose run` on the host instead measures
+  only the docker client (CPU 0%, wrong RAM). For multi-step tools, time only the
+  graph-construction binary, not the post-processing (merge/convert/export).
 
 
 Input-layout policy for assembly datasets:
@@ -131,7 +136,9 @@ CANONICAL_GFA="${OUTPUT_DIR}/minigraph_${DATASET_SHORT}.gfa"
 
 mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
 ./utils/clean_outputs.sh "${DATASET}" "${TOOL}"
-/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- docker compose run --rm minigraph bash -lc "cd /minigraph && ./minigraph -cxggs ${ASSEMBLY_GLOB} > ${CANONICAL_GFA}" > "${LOG_DIR}/execution.log" 2>&1
+# Time the tool INSIDE the container so timing.log measures minigraph itself,
+# not the `docker compose run` client. Use absolute mounted paths (/results, /input_data).
+docker compose run --rm minigraph bash -lc "cd /minigraph && /usr/bin/time -v -o /${LOG_DIR}/timing.log ./minigraph -cxggs ${ASSEMBLY_GLOB} > /${CANONICAL_GFA}" > "${LOG_DIR}/execution.log" 2>&1
 sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/organize_outputs.py "${TOOL}" "${OUTPUT_DIR}"
 # Canonical output: ${CANONICAL_GFA}
@@ -155,8 +162,9 @@ cd /home/azureuser/constructionBS
 mkdir -p results/C4_TEST/LCPan/pggb_vgx/{outputs,logs}
 sudo chown -R $USER:$USER results/C4_TEST/LCPan
 
-/usr/bin/time -v -o results/C4_TEST/LCPan/pggb_vgx/logs/timing.log -- \
-docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vgx --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.log" \
+# Time only the lcpan construction step (the && lcpan-merge.sh post-processing
+# stays outside the measurement). Timing runs inside the container.
+docker compose run --rm lcpan bash -lc "/usr/bin/time -v -o /results/C4_TEST/LCPan/pggb_vgx/logs/timing.log /lcpan/bin/lcpan -vgx --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/pggb_vgx/outputs/lcpan_C4.log" \
 > results/C4_TEST/LCPan/pggb_vgx/logs/execution.log 2>&1
 
 sudo chown -R $USER:$USER results/C4_TEST/LCPan
@@ -216,9 +224,10 @@ CANONICAL_GFA="${OUTPUT_DIR}/lcpan_${DATASET_SHORT}.gfa"
 mkdir -p "${OUTPUT_DIR}" "${LOG_DIR}"
 sudo chown -R $USER:$USER "${LCPAN_DIR}"
 
-/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+# Time only the lcpan construction step inside the container; lcpan-merge.sh
+# (post-processing) stays outside the measurement.
 docker compose run --rm lcpan bash -lc \
-"/lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r ${REFERENCE_FASTA} -v ${INPUT_VCF} -p ${OUT_PREFIX} && /lcpan/lcpan-merge.sh ${OUT_PREFIX}.log" \
+"/usr/bin/time -v -o /${LOG_DIR}/timing.log /lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r ${REFERENCE_FASTA} -v ${INPUT_VCF} -p ${OUT_PREFIX} && /lcpan/lcpan-merge.sh ${OUT_PREFIX}.log" \
 > "${LOG_DIR}/execution.log" 2>&1
 
 sudo chown -R $USER:$USER "${LCPAN_DIR}"
@@ -301,9 +310,9 @@ awk -v locus="${DATASET_SHORT}" '
 ' "${TOTAL_FA}" > "${PAN_INPUT}"
 
 docker compose run --rm pggb bash -lc "samtools faidx /${PAN_INPUT}"
-/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+# Time pggb inside the container so timing.log measures pggb, not docker run.
 docker compose run --rm pggb bash -lc \
-"pggb -i /${PAN_INPUT} -n ${PGGB_N} -t ${THREADS} -o /${OUTPUT_DIR}" \
+"/usr/bin/time -v -o /${LOG_DIR}/timing.log pggb -i /${PAN_INPUT} -n ${PGGB_N} -t ${THREADS} -o /${OUTPUT_DIR}" \
 > "${LOG_DIR}/execution.log" 2>&1
 sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/organize_outputs.py PGGB "${OUTPUT_DIR}"
@@ -388,11 +397,11 @@ lines (the PanSN string is preserved in the seqid field).
 
 Note on `docker compose run -T`: POASTA needs the `-T` flag (disable pseudo-TTY
 allocation). Without it the `docker compose run` client receives `SIGTTOU` and
-suspends (state `T`) after the container finishes, leaving the terminal hung and
-`/usr/bin/time` unable to write `timing.log`. With `-T` the command returns
-normally and both logs are written, exactly like the other tools. POASTA itself
-is silent on success, so `execution.log` only holds the `Container ...` lines;
-an empty body there means the run succeeded, not that it failed.
+suspends (state `T`) after the container finishes, leaving the terminal hung.
+With `-T` the command returns normally. (Timing is now taken inside the container
+around `poasta` itself, so it no longer depends on the docker client behaving.)
+POASTA itself is silent on success, so `execution.log` only holds the
+`Container ...` lines; an empty body there means the run succeeded, not that it failed.
 
 ```bash
 cd /home/azureuser/constructionBS
@@ -414,19 +423,58 @@ if [ ! -s "${PAN_INPUT}" ]; then
   exit 1
 fi
 
-/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+# Time poasta inside the container so timing.log measures poasta, not docker run.
 docker compose run --rm -T poasta bash -lc "\
-poasta align -O poasta -o /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta /${PAN_INPUT} && \
-poasta view -O gfa -o /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.gfa /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta && \
-poasta view -O fasta -o /${OUTPUT_DIR}/poasta_${DATASET_SHORT}_msa.fasta /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta" \
+/usr/bin/time -v -o /${LOG_DIR}/timing.log poasta align -O gfa -o /${OUTPUT_DIR}/poasta_${DATASET_SHORT}.gfa /${PAN_INPUT}" \
 > "${LOG_DIR}/execution.log" 2>&1
 
 sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/organize_outputs.py POASTA "${OUTPUT_DIR}"
 # Canonical output: ${OUTPUT_DIR}/poasta_${DATASET_SHORT}.gfa
-# Auxiliary outputs:
-# - ${OUTPUT_DIR}/poasta_${DATASET_SHORT}.poasta
-# - ${OUTPUT_DIR}/poasta_${DATASET_SHORT}_msa.fasta
+# `poasta align -O gfa` emits the GFA directly in a single pass; the intermediate
+# .poasta graph and tabular MSA are not produced when only the GFA is needed.
+# (POASTA is single-threaded: it has no thread flag.)
+```
+
+---
+
+### Theseus (Parameterized)
+
+`theseus_msa` is a partial-order MSA aligner. Like POASTA it consumes the same
+aggregated PanSN FASTA. Note the flag semantics: `-t`/`--output_type` selects
+the **output format**, not threads (`-t 1` = GFA); Theseus has no thread flag.
+Scoring penalties (`-m`, `-x`, `-o`, `-e`) are left at their defaults.
+
+```bash
+cd /home/azureuser/constructionBS
+
+DATASET="C4_TEST"
+DATASET_SHORT="C4"  # e.g. C4, KIR, MHC
+RUN_DIR="results/${DATASET}/Theseus"
+OUTPUT_DIR="${RUN_DIR}/outputs"
+LOG_DIR="${RUN_DIR}/logs"
+AUX_DIR="input_data/${DATASET}/AUXILIARY_INPUTS"
+PAN_INPUT="${AUX_DIR}/${DATASET_SHORT,,}_total_pansn.fa"
+
+mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
+./utils/clean_outputs.sh "${DATASET}" Theseus
+
+# Reuse the PGGB PanSN concatenation; create it first with the PGGB section.
+if [ ! -s "${PAN_INPUT}" ]; then
+  echo "Missing ${PAN_INPUT}; create it with the PGGB PanSN-preparation step first." >&2
+  exit 1
+fi
+
+# Time theseus_msa inside the container so timing.log measures the tool itself.
+docker compose run --rm -T theseus bash -lc "\
+/usr/bin/time -v -o /${LOG_DIR}/timing.log theseus_msa -s /${PAN_INPUT} -f /${OUTPUT_DIR}/theseus_${DATASET_SHORT}.gfa -t 1" \
+> "${LOG_DIR}/execution.log" 2>&1
+
+sudo chown -R $USER:$USER "${RUN_DIR}"
+python utils/organize_outputs.py Theseus "${OUTPUT_DIR}"
+# Canonical output: ${OUTPUT_DIR}/theseus_${DATASET_SHORT}.gfa
+# `-t 1` selects GFA output (the patched theseus_msa emits P/W path records);
+# `-t` is the output format, NOT a thread count, and Theseus has no thread flag.
 ```
 
 ---
@@ -449,9 +497,9 @@ CANONICAL_GFA="${OUTPUT_DIR}/minigraphcactus_${DATASET_SHORT}.gfa"
 mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
 ./utils/clean_outputs.sh "${DATASET}" MinigraphCactus
 python utils/make_minigraphcactus_seqfile.py "${DATASET}"
-/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+# Time cactus-pangenome inside the container so timing.log measures the tool.
 docker compose run --rm minigraphcactus bash -lc \
-"cactus-pangenome /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} --outDir /${OUTPUT_DIR} --outName minigraphcactus_${DATASET_SHORT} --reference ${REFERENCE_NAME} --gfa clip --batchSystem single_machine --maxCores ${MAX_CORES}" \
+"/usr/bin/time -v -o /${LOG_DIR}/timing.log cactus-pangenome /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} --outDir /${OUTPUT_DIR} --outName minigraphcactus_${DATASET_SHORT} --reference ${REFERENCE_NAME} --gfa clip --batchSystem single_machine --maxCores ${MAX_CORES}" \
 > "${LOG_DIR}/execution.log" 2>&1
 sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/organize_outputs.py MinigraphCactus "${OUTPUT_DIR}"
@@ -528,11 +576,9 @@ sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/make_minigraphcactus_seqfile.py "${DATASET}" \
   --output "${SEQFILE_PATH}"
 
-# Run cactus-pangenome
-/usr/bin/time -v \
-  -o "${LOG_DIR}/timing_cactus_pangenome.log" -- \
+# Run cactus-pangenome (timed inside the container)
 docker compose run --rm minigraphcactus bash -lc \
-"cactus-pangenome \
+"/usr/bin/time -v -o /${LOG_DIR}/timing_cactus_pangenome.log cactus-pangenome \
  /${RUN_DIR}/jobstore \
  /${SEQFILE_PATH} \
  --outDir /${OUTPUT_DIR} \
@@ -557,11 +603,9 @@ awk -v contig="$VCF_CONTIG" 'NR==1{print ">" contig; next} {print}' \
 "${REFERENCE_FASTA}" \
 > "${OUTPUT_DIR}/result_autoindex_ref.fa"
 
-# Run vg autoindex as a secondary, reference-centric indexing branch.
-/usr/bin/time -v \
-  -o "${LOG_DIR}/timing_vg_autoindex.log" -- \
+# Run vg autoindex as a secondary, reference-centric indexing branch (timed inside the container).
 docker compose run --rm minigraphcactus bash -lc \
-"vg autoindex \
+"/usr/bin/time -v -o /${LOG_DIR}/timing_vg_autoindex.log vg autoindex \
  --workflow sr-giraffe \
  --prefix /${OUTPUT_DIR}/${AUTOINDEX_PREFIX} \
  --ref-fasta /${OUTPUT_DIR}/result_autoindex_ref.fa \
@@ -642,9 +686,9 @@ CANONICAL_HAL="${OUTPUT_DIR}/cactus_${DATASET_SHORT}.hal"
 mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
 ./utils/clean_outputs.sh "${DATASET}" Cactus
 python utils/make_cactus_seqfile.py "${DATASET}"
-/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+# Time cactus inside the container; HAL->VG/GFA export below stays unmeasured.
 docker compose run --rm cactus bash -lc \
-"cactus /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} /${CANONICAL_HAL} --batchSystem single_machine --maxCores ${MAX_CORES}" \
+"/usr/bin/time -v -o /${LOG_DIR}/timing.log cactus /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} /${CANONICAL_HAL} --batchSystem single_machine --maxCores ${MAX_CORES}" \
 > "${LOG_DIR}/execution.log" 2>&1
 sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/organize_outputs.py Cactus "${OUTPUT_DIR}"
@@ -712,9 +756,9 @@ CANONICAL_HAL="${OUTPUT_DIR}/progressivecactus_${DATASET_SHORT}.hal"
 mkdir -p "${LOG_DIR}" "${OUTPUT_DIR}"
 ./utils/clean_outputs.sh "${DATASET}" ProgressiveCactus
 python utils/make_cactus_seqfile.py "${DATASET}" --output "${SEQFILE_PATH}"
-/usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+# Time cactus inside the container; HAL->VG/GFA export below stays unmeasured.
 docker compose run --rm progressivecactus bash -lc \
-"cactus /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} /${CANONICAL_HAL} --batchSystem single_machine --maxCores ${MAX_CORES}" \
+"/usr/bin/time -v -o /${LOG_DIR}/timing.log cactus /${OUTPUT_DIR}/jobstore /${SEQFILE_PATH} /${CANONICAL_HAL} --batchSystem single_machine --maxCores ${MAX_CORES}" \
 > "${LOG_DIR}/execution.log" 2>&1
 sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/organize_outputs.py ProgressiveCactus "${OUTPUT_DIR}"
@@ -804,9 +848,9 @@ for VARIANT in mc_vg mc_vgx; do
   docker compose run --rm pggb bash -lc "samtools faidx /${REF_FASTA_FOR_LCPAN}"
   bgzip -dc "${CACTUS_VCF_GZ}" > "${VCF_FOR_LCPAN}"
 
-  /usr/bin/time -v -o "${LOG_DIR}/timing.log" -- \
+  # Time only the lcpan construction step inside the container; lcpan-merge.sh stays outside.
   docker compose run --rm lcpan bash -lc \
-  "/lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r /${REF_FASTA_FOR_LCPAN} -v /${VCF_FOR_LCPAN} -p ${OUT_PREFIX} && /lcpan/lcpan-merge.sh ${OUT_PREFIX}.log" \
+  "/usr/bin/time -v -o /${LOG_DIR}/timing.log /lcpan/bin/lcpan ${MODE_FLAG} --gfa -t ${THREADS} -r /${REF_FASTA_FOR_LCPAN} -v /${VCF_FOR_LCPAN} -p ${OUT_PREFIX} && /lcpan/lcpan-merge.sh ${OUT_PREFIX}.log" \
   > "${LOG_DIR}/execution.log" 2>&1
 
   mkdir -p "${OUTPUT_DIR}/artifacts"

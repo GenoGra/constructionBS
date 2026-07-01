@@ -118,6 +118,15 @@ def prepare_sanitized_assemblies(
     path_map: dict[Path, Path] = {}
     for source_fasta in fasta_files:
         target_fasta = sanitized_dir / source_fasta.name
+        # Guard against source and target being the same physical file. In some
+        # datasets (e.g. C4_TEST) ASSEMBLIES/<f> is a symlink into
+        # ASSEMBLIES_CACTUS_SANITIZED/<f>, so source and target resolve to the
+        # same inode. Opening the target in "w" would truncate it before the
+        # source is read, destroying the input. In that case the file is already
+        # its own sanitized copy: skip rewriting and just map it.
+        if target_fasta.exists() and target_fasta.samefile(source_fasta):
+            path_map[source_fasta] = target_fasta
+            continue
         sanitize_fasta_headers(source_fasta, target_fasta)
         path_map[source_fasta] = target_fasta
 

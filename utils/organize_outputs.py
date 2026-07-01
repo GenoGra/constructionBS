@@ -101,7 +101,6 @@ TOOL_SPECS = {
         tool_name="POASTA",
         final_output_pattern="*.gfa",
         canonical_uncompressed_suffix=".gfa",
-        optional_top_level_suffixes=(".poasta", "_msa.fasta"),
         compressed=False,
     ),
     "Theseus": ToolOutputSpec(

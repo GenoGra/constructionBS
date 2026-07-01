@@ -131,7 +131,8 @@ def build_table(dataset_name: str, summaries: list[TimingSummary]) -> str:
             "Notes:",
             "- `Elapsed` is the main metric to compare end-to-end runtime.",
             "- `Exit status` confirms whether the run completed successfully.",
-            "- CPU and RAM fields from these Docker-wrapped logs are not reliable for cross-tool comparisons.",
+            "- Timing is now measured inside the container around the tool itself, so the "
+            "GNU time CPU%, User/System time, and peak RAM fields reflect the tool, not the docker client.",
             "- `MC_vg` is tracked as a standalone tool; `from_MC_vg` and `from_MC_vgx` are downstream LCPan variants.",
         ]
     )
