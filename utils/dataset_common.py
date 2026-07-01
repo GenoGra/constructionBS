@@ -131,6 +131,91 @@ def first_existing(base_dir: Path, relative_candidates: tuple[str, ...]) -> Path
     return None
 
 
+# ---------------------------------------------------------------------------
+# Shared seqfile-generation helpers.
+#
+# Both seqfile generators (Cactus and Minigraph-Cactus) discover the same FASTA
+# inputs, derive sample names the same way, and map host paths into containers
+# the same way. Keeping these here is the single source of truth so the two
+# scripts cannot drift (they previously held near-identical private copies that
+# had already diverged).
+# ---------------------------------------------------------------------------
+
+# FASTA suffixes treated as per-sample assemblies.
+VALID_FASTA_SUFFIXES = {".fa", ".fasta", ".fna"}
+
+# Non-FASTA sidecar suffixes to skip outright.
+IGNORED_FASTA_SIDECAR_SUFFIXES = {".fai"}
+
+# Safety net for aggregate/helper FASTA files that must never be treated as
+# per-sample assemblies. The input-layout convention keeps these under
+# AUXILIARY_INPUTS/, so ASSEMBLIES/ is expected to be clean; this suffix filter
+# only guards against a helper file accidentally left in ASSEMBLIES/.
+NON_ASSEMBLY_STEM_SUFFIXES = ("_total", "_total_pansn", "_queries", "_reference")
+
+
+def find_fasta_files(assemblies_dir: Path) -> list[Path]:
+    """
+    Return sorted per-sample FASTA files from one assemblies directory.
+
+    Relies on the input-layout convention (per-sample assemblies in ASSEMBLIES/,
+    aggregates/helpers in AUXILIARY_INPUTS/). The stem-suffix filter is only a
+    safety net against helper files accidentally left in ASSEMBLIES/.
+    """
+    fasta_files: list[Path] = []
+    for path in sorted(assemblies_dir.iterdir()):
+        if not path.is_file():
+            continue
+        if path.suffix in IGNORED_FASTA_SIDECAR_SUFFIXES:
+            continue
+        if path.stem.lower().endswith(NON_ASSEMBLY_STEM_SUFFIXES):
+            continue
+        if path.suffix.lower() in VALID_FASTA_SUFFIXES:
+            fasta_files.append(path)
+    return fasta_files
+
+
+def normalize_sample_name(fasta_path: Path, rewrites: dict[str, str] | None = None) -> str:
+    """
+    Derive a stable sample name from a FASTA filename.
+
+    ``rewrites`` is an ordered mapping of literal substring replacements applied
+    to the filename stem, sourced per dataset from
+    ``META/dataset_info.yml`` under ``seqfile.sample_name_rewrites``. When it is
+    empty or None the stem is used unchanged, so the code holds no dataset-
+    specific knowledge of its own.
+    """
+    sample_name = fasta_path.stem
+    for old, new in (rewrites or {}).items():
+        sample_name = sample_name.replace(old, new)
+    return sample_name
+
+
+def to_container_path(repo_root: Path, host_path: Path) -> str:
+    """
+    Convert one host path under input_data/ to the path visible in containers.
+    """
+    input_root = repo_root / "input_data"
+    relative_path = host_path.relative_to(input_root)
+    return f"/input_data/{relative_path.as_posix()}"
+
+
+def get_sample_name_rewrites(repo_root: Path, dataset_name: str) -> dict[str, str]:
+    """
+    Read ``seqfile.sample_name_rewrites`` from one dataset's metadata.
+
+    Returns an empty dict when the dataset declares no rewrites, so datasets
+    that follow a clean naming convention need no metadata at all.
+    """
+    from utils.dataset_metadata import get_metadata_value, load_dataset_metadata_dict
+
+    metadata = load_dataset_metadata_dict(repo_root / "input_data" / dataset_name)
+    rewrites = get_metadata_value(metadata, "seqfile.sample_name_rewrites")
+    if isinstance(rewrites, dict):
+        return {str(key): str(value) for key, value in rewrites.items()}
+    return {}
+
+
 class ToolRunnability(TypedDict):
     tool: str
     runnable: bool

@@ -111,25 +111,36 @@ def create_results_structure(dataset_name: str, tool_names: list[str]) -> dict[s
     return created_paths
 
 
+def to_container_path(host_path: Path) -> str:
+    """
+    Map a host path under results/ to the absolute path seen inside containers.
+
+    The compose bind mount is ./results -> /results, so a host path like
+    results/<DATASET>/<TOOL>/logs/timing.log is /results/... in the container.
+    """
+    results_root = get_results_root()
+    relative = Path(host_path).relative_to(results_root)
+    return f"/results/{relative.as_posix()}"
+
+
 def build_wrapped_command(
     dataset_name: str,
     tool_name: str,
     real_command: str,
 ) -> str:
     """
-    Wrap a real tool command with standard execution/timing logging.
+    Wrap a real tool command with in-container timing measurement.
+
+    The returned string is meant to be passed to ``docker compose run ... bash -lc``
+    so that ``/usr/bin/time`` measures the tool itself inside the container, not the
+    ``docker compose run`` client on the host. The timing log is written to the
+    container-visible ``/results/...`` path; stdout/stderr (the execution log) are
+    captured by the caller redirecting the host-side ``docker compose run``.
     """
-    execution_log, timing_log = get_tool_log_paths(dataset_name, tool_name)
+    _, timing_log = get_tool_log_paths(dataset_name, tool_name)
+    container_timing_log = shlex.quote(to_container_path(timing_log))
 
-    quoted_real_command = shlex.quote(real_command)
-    quoted_execution_log = shlex.quote(str(execution_log))
-    quoted_timing_log = shlex.quote(str(timing_log))
-
-    return (
-        f"/usr/bin/time -v -o {quoted_timing_log} "
-        f"bash -c {quoted_real_command} "
-        f"> {quoted_execution_log} 2>&1"
-    )
+    return f"/usr/bin/time -v -o {container_timing_log} {real_command}"
 
 
 def get_wrapped_command_preview(
