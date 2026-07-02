@@ -1,31 +1,50 @@
+# Tool references for reproducible container builds.
+#
+# ref  : human-readable version (git tag, or image tag) — documents WHICH version.
+# pin  : the immutable identity the build actually uses — resolved 2026-07-02:
+#          - source: image -> base image digest (sha256:...); pull is byte-stable.
+#          - source: git   -> commit SHA the tag pointed to; clone+checkout is stable.
+#        Regenerate Dockerfiles with make_dockerfiles.py after editing.
+#
+# apt package versions are intentionally NOT pinned (they vanish from Ubuntu
+# repos on security updates and would break builds); out of scope for this pass.
+
 Cactus:
   source: image
   ref: v3.1.4
+  pin: sha256:c0ded40e585f6d5346c64d83485a3f021eab4b400fc4019caf30aff82feb413e
 
 Minigraph:
   source: git
   ref: v0.21
+  pin: 7e3e65c5e55a10e2968f32cef5c04eee9330521b
 
 MinigraphCactus:
   source: image
   ref: v3.1.4
+  pin: sha256:c0ded40e585f6d5346c64d83485a3f021eab4b400fc4019caf30aff82feb413e
 
 PGGB:
   source: image
-  ref: sha256:08bd929d8b60270719449434308fe78965f4567c45b35ea1a9558f2ee3004cc0
+  ref: digest-only  # upstream tag not recoverable from digest; pin is authoritative
+  pin: sha256:08bd929d8b60270719449434308fe78965f4567c45b35ea1a9558f2ee3004cc0
 
 ProgressiveCactus:
   source: image
   ref: v3.1.4
+  pin: sha256:c0ded40e585f6d5346c64d83485a3f021eab4b400fc4019caf30aff82feb413e
 
 Theseus:
   source: git
   ref: v1.0.0
+  pin: f59b35f66707be01bf664524d2a67b5983ac8f5e  # annotated tag -> dereferenced commit
 
 POASTA:
   source: git
   ref: v0.1.0
+  pin: c9009a1444538adc5418f0e0d9b189565d109600  # annotated tag -> dereferenced commit
 
 LCPan:
   source: git
   ref: v1.1
+  pin: 8cb89b5013f034e86f8f6aab3a328aab22494c63
