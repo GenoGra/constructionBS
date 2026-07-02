@@ -127,6 +127,7 @@ def build_wrapped_command(
     dataset_name: str,
     tool_name: str,
     real_command: str,
+    timing_log_name: str = "timing.log",
 ) -> str:
     """
     Wrap a real tool command with in-container timing measurement.
@@ -136,8 +137,11 @@ def build_wrapped_command(
     ``docker compose run`` client on the host. The timing log is written to the
     container-visible ``/results/...`` path; stdout/stderr (the execution log) are
     captured by the caller redirecting the host-side ``docker compose run``.
+
+    ``timing_log_name`` names the log under logs/ (default "timing.log"). Tools
+    with multiple timed steps pass distinct names so measurements don't collide.
     """
-    _, timing_log = get_tool_log_paths(dataset_name, tool_name)
+    timing_log = get_tool_logs_path(dataset_name, tool_name) / timing_log_name
     container_timing_log = shlex.quote(to_container_path(timing_log))
 
     return f"/usr/bin/time -v -o {container_timing_log} {real_command}"

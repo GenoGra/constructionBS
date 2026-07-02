@@ -15,13 +15,22 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from run_config import INPUT_DATA_ROOT, RESULTS_ROOT
-from utils.dataset_metadata import get_dataset_short_name
-from utils.dataset_common import (
-    CANONICAL_GRAPH_PATTERNS,
-    EXCLUDED_GRAPH_SUFFIXES,
-    LCPAN_GRAPH_CANDIDATES,
-    STANDARD_TOOL_ORDER,
-)
+try:
+    from utils.dataset_metadata import get_dataset_short_name
+    from utils.dataset_common import (
+        CANONICAL_GRAPH_PATTERNS,
+        EXCLUDED_GRAPH_SUFFIXES,
+        LCPAN_GRAPH_CANDIDATES,
+        STANDARD_TOOL_ORDER,
+    )
+except ModuleNotFoundError:
+    from dataset_metadata import get_dataset_short_name
+    from dataset_common import (
+        CANONICAL_GRAPH_PATTERNS,
+        EXCLUDED_GRAPH_SUFFIXES,
+        LCPAN_GRAPH_CANDIDATES,
+        STANDARD_TOOL_ORDER,
+    )
 
 
 @dataclass(frozen=True)

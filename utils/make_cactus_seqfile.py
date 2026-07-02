@@ -14,12 +14,20 @@ from pathlib import Path
 import argparse
 import re
 
-from utils.dataset_common import (
-    find_fasta_files,
-    get_sample_name_rewrites,
-    normalize_sample_name,
-    to_container_path,
-)
+try:
+    from utils.dataset_common import (
+        find_fasta_files,
+        get_sample_name_rewrites,
+        normalize_sample_name,
+        to_container_path,
+    )
+except ModuleNotFoundError:
+    from dataset_common import (
+        find_fasta_files,
+        get_sample_name_rewrites,
+        normalize_sample_name,
+        to_container_path,
+    )
 
 
 SANITIZED_DIRNAME = "ASSEMBLIES_CACTUS_SANITIZED"

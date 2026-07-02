@@ -1,608 +1,272 @@
 # constructionBS
 
-constructionBS is a toolkit for setting up and running bioinformatics pipelines for pangenome graph construction using containerized tools. It provides utilities to prepare datasets, generate Docker configurations, and manage execution environments for various graph construction tools.
+constructionBS is a **reproducible benchmark suite** for pangenome graph
+construction. It runs several containerized graph-construction tools on the same
+datasets, under pinned environments, and records enough provenance that a run
+can be reproduced and compared months later.
 
-## Overview
+The suite is built around three reproducibility guarantees:
 
-This repository contains Python scripts and configuration files to automate the setup of bioinformatics workflows for pangenome analysis. It supports multiple tools including Cactus, Minigraph, PGGB, and ProgressiveCactus, providing a standardized way to:
+1. **Environment** — every container is pinned (base image by digest, git
+   sources by commit SHA), so a rebuild is byte-stable. See [Reproducibility](#reproducibility).
+2. **Execution** — a single orchestrator (`run_tool.py`) runs a tool end to end
+   from declarative specs, reading all dataset-specific values from versioned
+   config instead of hand-edited shell blocks. See [Running a tool](#running-a-tool).
+3. **Result** — each run writes a `run_manifest.yml` next to its outputs
+   (tool, version, params, commands, timing), so results are self-describing.
 
-- Validate dataset structures and requirements
-- Generate Dockerfiles for each tool
-- Create docker-compose configurations for execution
-- Manage results and logging directories
+## Repository layout
 
-## Features
+```
+constructionBS/
+├── run_tool.py              # orchestrator: run one tool on one dataset, end to end
+├── tools_config.yml         # per-tool version pins (ref + pin); source of truth for builds
+├── tool_registry.py         # per-tool metadata: source, compose service, requirements, input specs
+├── make_dockerfiles.py      # generates Dockerfiles/ from tools_config.yml (+ templates)
+├── make_dockercompose.py    # generates docker-compose.yml from the registry
+├── docker-compose.yml       # GENERATED — one service per tool
+├── run_config.py            # repo roots (input_data/results) + expected file types
+├── config/
+│   └── datasets/<DS>.yml     # VERSIONED dataset config (see Dataset config)
+├── Dockerfiles/<Tool>/       # GENERATED per-tool Dockerfiles
+├── patches/                  # source patches applied at build time (e.g. Theseus)
+├── utils/                    # seqfile generators, output/timing summarizers, helpers
+├── docs/
+│   └── runbook_commands.md   # raw command blocks for tools not yet orchestrated
+├── input_data/  ->  symlink to the data mount (datasets live outside git)
+└── results/     ->  symlink to the results mount
+```
 
-- **Dataset Validation**: Check if datasets are properly structured and contain required files
-- **Automated Docker Setup**: Generate Dockerfiles and docker-compose files for supported tools
-- **Results Management**: Create standardized directory structures for outputs and logs
-- **Tool Compatibility**: Support for multiple pangenome graph construction tools
-- **Configuration-Driven**: Easy to add new tools or modify existing configurations
-
-## Supported Tools
-
-- **Cactus**: Progressive alignment workflow (`HAL`-first, distinct from `cactus-pangenome`)
-- **Minigraph**: Fast graph construction from assemblies
-- **MinigraphCactus**: Hybrid approach combining Minigraph and Cactus
-- **PGGB**: Pangenome Graph Builder
-- **ProgressiveCactus**: Progressive alignment using Cactus
-- **LCPan**: VCF-driven pangenome graph builder from a single-reference FASTA + VCF (`-vg` and `-vgx` modes)
+`input_data/` and `results/` are symlinks to a data mount — the heavy data is
+**not** in git. Dataset *configuration* is, under `config/datasets/`.
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.8+ with `pyyaml` (`pip install pyyaml`)
 - Docker and Docker Compose
-- Git
+- `gawk` on the host (host-side awk steps rely on GNU awk; the containers ship
+  only `mawk`)
 
-## Installation
+## Supported tools
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd constructionBS
-   ```
+Nine tools are registered. Five are driven end to end by the orchestrator; the
+other four still run via the runbook (see [Tool status](#tool-status)).
 
-2. Install Python dependencies:
-   ```bash
-   pip install pyyaml
-   ```
+| Tool | Type | Container base |
+|------|------|----------------|
+| Minigraph | git | ubuntu (build from source) |
+| Cactus | image | cactus |
+| ProgressiveCactus | image | cactus |
+| MinigraphCactus | image | cactus (`cactus-pangenome`) |
+| MC_vg | image | cactus + `vg autoindex` branch |
+| PGGB | image | pggb |
+| POASTA | git | rust (build from source) |
+| Theseus | git | ubuntu (build from source, patched) |
+| LCPan | git | ubuntu (VCF-driven, single-reference) |
 
-## Dataset Structure
+## Dataset structure
 
-Datasets should follow this directory structure:
+Each dataset directory (under the `input_data/` mount) follows:
 
 ```
-dataset_name/
-├── ASSEMBLIES/     # Assembly files (.fa, .fasta, .fna)
-├── GRAPH/          # Graph/runtime files (.fa, .fasta, .fna, .gfa, .rgfa, .vcf)
-├── META/           # Metadata files
-│   └── dataset_info.yml
+<DATASET>/
+├── ASSEMBLIES/                   # primary per-sample FASTA inputs
+├── ASSEMBLIES_CACTUS_SANITIZED/  # sanitized copies for Cactus-family workflows
+├── AUXILIARY_INPUTS/             # helper FASTA (concatenated *_total.fa, *_reference.fa, ...)
+├── GRAPH/                        # graph/VCF inputs (LCPan reference + VCF live here)
+└── META/
+    └── dataset_info.yml          # legacy config location (see below)
 ```
 
-### Metadata File (META/dataset_info.yml)
+Conventions:
+- `ASSEMBLIES/` holds only the primary per-sample FASTA inputs used by
+  graph-construction workflows. Helper/aggregate FASTA go in `AUXILIARY_INPUTS/`
+  and are intentionally ignored by the seqfile generators.
+- `C4_TEST` is a validated historical exception: its `ASSEMBLIES/` is a
+  symlink view of `ASSEMBLIES_CACTUS_SANITIZED/`.
+
+## Dataset config
+
+Dataset configuration is **version-controlled** in `config/datasets/<DATASET>.yml`.
+The suite resolves config by preferring that versioned file, falling back to the
+legacy `META/dataset_info.yml` inside the (unversioned) data mount when it is
+absent — so datasets that predate the migration keep working unchanged.
+
+A config file declares the readiness, the enabled workflows (used as an
+execution gate), and the tool parameters that the orchestrator reads instead of
+hand-edited variables:
 
 ```yaml
-status: "ready"  # or "placeholder"
-description: "Dataset description"
-expected_inputs:
-  assemblies: true
-  graph: true
-supported_workflows:
+dataset_short: C4                 # short token used in output filenames
+status: ready
+reference_name: C4-GRCh38         # reference sample (Cactus-family, MC_vg)
+threads: 16                       # global default; per-tool overrides below
+supported_workflows:              # execution gate: only enabled tools may run
   cactus: true
   minigraph: true
   minigraphcactus: true
-  pggb: true
-  lcpan: true
   progressivecactus: true
+  mc_vg: true
+cactus:
+  max_cores: 32                   # per-tool override of the global `threads`
+seqfile:
+  sample_name_rewrites:           # generic header rewrites (no dataset names in code)
+    "00GRCh38": "GRCh38"
 ```
 
-## Usage
+## Running a tool
 
-### 1. Prepare Datasets
-
-Place your datasets in the `input_data/` directory following the required structure.
-
-### 2. Check Dataset Readiness
-
-Use the `utils/check_inputs.py` script to validate your datasets:
+The orchestrator runs one tool on one dataset end to end:
 
 ```bash
-python -m utils.check_inputs --dataset dataset_name
-# or inspect everything under the default input_data/ directory
-python -m utils.check_inputs
-# or point to a custom datasets root
-python -m utils.check_inputs --input-data /path/to/input_data --dataset dataset_name
+python run_tool.py <DATASET> <TOOL> [--dry-run] [--skip-optional] [--force]
 ```
 
-This will provide a detailed report on:
-- Directory structure validity
-- File type checking
-- Tool runnability status
-- Input resolution status
+- `--dry-run` — print the rendered plan (every step, fully expanded) and the
+  provenance manifest, without executing anything. **Start here** to see exactly
+  what will run.
+- `--skip-optional` — skip optional (derived-output) steps.
+- `--force` — overwrite an existing canonical output. Without it, the run is
+  **refused** when a canonical output already exists, to protect validated runs.
 
-For `Minigraph` graph construction, the dataset should provide at least two FASTA
-files in `ASSEMBLIES/`: the first is used as the reference backbone and the
-others are incrementally added to the graph. The expected output is a graph
-file (`.gfa`/rGFA), not a mapping file (`.gaf`).
-
-Validated example datasets currently used in this repository are:
-- `input_data/MHC_TEST`
-- `input_data/C4_TEST`
-- `input_data/KIR_TEST`
-
-Input layout convention for assembly datasets:
-- `ASSEMBLIES/` must contain only the primary per-sample FASTA inputs used by
-  graph-construction workflows.
-- `ASSEMBLIES_CACTUS_SANITIZED/` must contain only sanitized copies of those
-  same primary assemblies for Cactus-family workflows.
-- `C4_TEST` is a validated historical exception: `ASSEMBLIES/` is currently a
-  symlink-based view of `ASSEMBLIES_CACTUS_SANITIZED/`, so the primary inputs
-  visible there are already the sanitized files.
-- `AUXILIARY_INPUTS/` should store helper FASTA files that must not be treated
-  as primary assemblies, including concatenated inputs such as `*_total.fa`,
-  helper references such as `*_reference.fa`, helper query files such as
-  `*_queries.fa`, and original multi-FASTA aggregates.
-- The seqfile generators intentionally ignore those helper inputs so they are
-  not accidentally pulled into new runs.
-
-For `PGGB`, the same datasets are used as separate experiments, but the input
-must first be concatenated into a single FASTA per dataset.
-
-For `LCPan`, the dataset must also provide one VCF in `GRAPH/` plus a
-single-reference FASTA whose header exactly matches the VCF `CHROM` field.
-Those two files are now treated as official dataset inputs under `GRAPH/`.
-
-For `MinigraphCactus`, the same assembly-per-sample datasets can be reused,
-but the workflow needs a seqfile that maps sample names to FASTA paths.
-
-Graph-visualization normalization convention:
-- Keep the canonical graph output from each tool unchanged.
-- If a viewer requires the reference to appear as a `P`-line instead of a
-  `W`-line, write a derived visualization-only GFA rather than modifying the
-  canonical file.
-- For `Cactus`, `ProgressiveCactus`, and `MinigraphCactus`, only the
-  reference `W` should be replaced with a `P`; all other sample `W`-lines stay
-  unchanged.
-- For `Minigraph`, the canonical output is an rGFA without native `P`/`W`
-  records; only the reference backbone can be derived later from the rGFA
-  tags, not the sample paths.
-- For `LCPan`, the current outputs preserve only the reference `P`; sample
-  `W`-lines and sample `P`-lines are not recoverable from the current GFA
-  outputs.
-
-For `LCPan`, Docker image generation is fully integrated in `tools_config.yml`
-and `make_dockerfiles.py`; set the desired `ref` for the `lcpan` tool to pin
-the exact upstream revision used in runs.
-
-### 3. Generate Dockerfiles
-
-Generate Dockerfiles for all configured tools:
+Example:
 
 ```bash
-python make_dockerfiles.py
+python run_tool.py C4_TEST Minigraph --dry-run   # inspect the plan
+python run_tool.py C4_TEST Minigraph             # execute
 ```
 
-This creates Dockerfiles in the `Dockerfiles/` directory based on `tools_config.yml`.
-
-### 4. Generate Docker Compose Configuration
-
-Create a docker-compose.yml file for running the tools:
-
-```bash
-python make_dockercompose.py
-```
-
-This generates a compose file with services for each tool, mounting the `input_data/` and `results/` directories.
-
-### 5. Run Tools
-
-Start the desired tool service:
-
-```bash
-docker compose run cactus
-# or
-docker compose run minigraph
-# etc.
-```
-
-For real graph construction runs, use the dataset-specific command
-inside the container and wrap it with `/usr/bin/time` so that both
-`execution.log` and `timing.log` are populated. 
-
-To build compact Markdown summaries for one dataset after runs complete, use:
-
-```bash
-cd /home/azureuser/constructionBS
-python utils/summarize_timing_logs.py <TEST_NAME>
-python utils/summarize_output_graphs.py <TEST_NAME>
-```
-
-This writes:
-- `results/<DATASET>/timing_summary.md`
-- `results/<DATASET>/output_summary.md`
-
-Canonical naming note:
-- `python utils/organize_outputs.py ...` and `python utils/summarize_output_graphs.py <DATASET>`
-  now both prefer the optional metadata field `dataset_short` when present
-- if `dataset_short` is absent, both commands keep the legacy behavior and
-  derive the short token by stripping a trailing `_TEST`
-
-## Common GFA Line Encodings
-
-Some workflows already write path information as `W`-lines or `P`-lines, while
-others need a post-processing step. To avoid repeating the same conversion
-commands in every tool section, use the patterns below after the canonical GFA
-has been produced.
-
-Current canonical encodings in this repository:
-- `PGGB`: canonical graph already uses `P`-lines
-- `Cactus`: exported `GFA` already uses `W`-lines
-- `ProgressiveCactus`: exported `GFA` already uses `W`-lines
-- `MinigraphCactus`: canonical graph already uses `W`-lines
-- `Minigraph`: canonical graph has no `P` or `W` records; only the reference
-  path embedded in the rGFA tags can be materialized from the current files
-
-For tools whose canonical `GFA` already uses `W`-lines (`Cactus` and `ProgressiveCactus`), keep an explicit `W`-line copy and derive the `P`-line version with:
-
-```bash
-cp <canonical_graph.gfa> <graph_with_wlines.gfa>
-docker compose run --rm progressivecactus bash -lc "vg convert -g -f -W <container_canonical_graph.gfa> > <container_graph_with_plines.gfa>"
-sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
-```
-
-For `MinigraphCactus`, the canonical `GFA` also uses `W`-lines, but the standard post-processing in this repository materializes only the derived `P`-line view.
-
-For tools whose canonical `GFA` already uses `P`-lines (`PGGB`, and the
-current reference-only `LCPan` outputs), keep an explicit `P`-line copy and
-derive the `W`-line version with:
-
-```bash
-cp <canonical_graph.gfa> <graph_with_plines.gfa>
-docker compose run --rm progressivecactus bash -lc "vg convert -g -f <container_canonical_graph.gfa> > <container_graph_with_wlines.gfa>"
-sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
-```
-
-For `Minigraph`, the current files can only reconstruct the rank-0 reference
-path from the rGFA tags, not full per-sample walks. Use:
-
-```bash
-docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f <container_canonical_graph.gfa> > <container_graph_with_wlines.gfa>"
-docker compose run --rm progressivecactus bash -lc "vg convert -g -r 0 -f -W <container_canonical_graph.gfa> > <container_graph_with_plines.gfa>"
-sudo chown $USER:$USER <graph_with_wlines.gfa> <graph_with_plines.gfa>
-```
-
-To inspect a large `GFA` without opening the full file in the editor, create a
-lightweight preview containing only the header plus `W`/`P` records. Example:
-
-```bash
-cd /home/azureuser/constructionBS
-grep -nE '^[HWP]	' results/C4_TEST/Cactus/outputs/cactus_C4.gfa \
-  > results/C4_TEST/Cactus/outputs/cactus_C4.preview.txt
-```
-
-For `PGGB`, use the official container image and prepare one aggregated FASTA
-per dataset. The input FASTA must also be indexed with `samtools faidx`. In
-practice, the most robust setup is to build a PanSN FASTA with canonical
-headers of the form `sample#hap#contig_or_region`; this avoids ambiguous prefix
-grouping during PGGB's prefix-based mapping stage and makes the final GFA
-consistent with downstream tooling.
-
-Example for `C4_TEST`:
-
-```bash
-cat input_data/C4_TEST/ASSEMBLIES/C4-*.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa
-
-awk '
-/^>/ {
-  h = substr($0, 2)
-  if (match(h, /^(.*)_([0-9]+)$/, a)) {
-    print ">" a[1] "#" a[2] "#C4"
-  } else {
-    print "ERROR: unrecognized header -> " h > "/dev/stderr"
-    exit 1
-  }
-  next
-}
-{ print }
-' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa > input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa
-
-docker compose run --rm pggb bash -lc 'samtools faidx /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa'
-mkdir -p results/C4_TEST/PGGB/outputs results/C4_TEST/PGGB/logs
-/usr/bin/time -p -o results/C4_TEST/PGGB/logs/timing.log docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/AUXILIARY_INPUTS/c4_total_pansn.fa -n 96 -o /results/C4_TEST/PGGB/outputs" > results/C4_TEST/PGGB/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/PGGB
-python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
-```
-
-This produces:
-- `results/C4_TEST/PGGB/outputs/pggb_C4.gfa`
-- `results/C4_TEST/PGGB/outputs/artifacts/`
-- `results/C4_TEST/PGGB/logs/execution.log`
-- `results/C4_TEST/PGGB/logs/timing.log`
-
-To keep a stable layout after a run, you can normalize the directory with:
-
-```bash
-python utils/organize_outputs.py PGGB results/C4_TEST/PGGB/outputs
-```
-
-This keeps:
-- `results/C4_TEST/PGGB/outputs/pggb_C4.gfa`
-
-and moves the original PGGB-generated files into:
-- `results/C4_TEST/PGGB/outputs/artifacts/`
-
-For cross-tool comparisons on `C4_TEST`, the raw PGGB GFA may need one final
-normalization step. PGGB emits `P` lines for every sample, while the rest of
-this study uses one reference `P` plus sample `W` lines. The validated
-convention is:
-- keep `GRCh38#0#C4` as the only `P`
-- convert every non-reference sample path to a `W`
-- preserve segments and links unchanged
-
-Example normalization:
-
-```bash
-awk '
-BEGIN {
-  FS = OFS = "	"
-  ref = "GRCh38#0#C4"
-}
-$1 == "S" {
-  seglen[$2] = length($3)
-  print
-  next
-}
-$1 != "P" {
-  print
-  next
-}
-{
-  name = $2
-  path = $3
-
-  if (name == ref) {
-    print
-    next
-  }
-
-  if (match(name, /^([^#]+)#([^#]+)#(.+)$/, a) == 0) {
-    print "ERROR: non-canonical PanSN name -> " name > "/dev/stderr"
-    exit 1
-  }
-
-  sample = a[1]
-  hap = a[2]
-  seqid = a[3]
-
-  n = split(path, steps, ",")
-  walk = ""
-  endpos = 0
-
-  for (i = 1; i <= n; i++) {
-    step = steps[i]
-    orient = substr(step, length(step), 1)
-    node = substr(step, 1, length(step) - 1)
-
-    if (!(node in seglen)) {
-      print "ERROR: missing segment -> " node > "/dev/stderr"
-      exit 1
-    }
-
-    if (orient == "+") {
-      walk = walk ">" node
-    } else if (orient == "-") {
-      walk = walk "<" node
-    } else {
-      print "ERROR: invalid orientation -> " step > "/dev/stderr"
-      exit 1
-    }
-
-    endpos += seglen[node]
-  }
-
-  print "W", sample, hap, seqid, 0, endpos - 1, walk
-}
-' results/C4_TEST/PGGB/outputs/pggb_C4.gfa > results/C4_TEST/PGGB/outputs/pggb_C4_refP_sampleW.gfa
-```
-
-For `LCPan`, use a PGGB-derived VCF plus a single-reference FASTA with an
-exactly matching sequence name. `LCPan` itself expects `ref.fa`, `ref.fa.fai`,
-and a plain-text `.vcf`; for the validated `C4_TEST` run the working reference
-was `GRCh38#0#C4` extracted from a temporary PanSN FASTA built from
-`AUXILIARY_INPUTS/c4_total.fa`.
-
-Example for `C4_TEST`:
-
-```bash
-mkdir -p input_data/C4_TEST/GRAPH/tmp/pggb_vcf
-
-awk '
-/^>/ {
-  sub(/^>/, "", $0)
-  print ">" $0 "#C4"
-  next
-}
-{ print }
-' input_data/C4_TEST/AUXILIARY_INPUTS/c4_total.fa \
-> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa
-
-docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa"
-
-/usr/bin/time -v -o input_data/C4_TEST/GRAPH/tmp/pggb_vcf/timing.log \
-docker compose run --rm pggb bash -lc "pggb -i /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa -n 96 -o /input_data/C4_TEST/GRAPH/tmp/pggb_vcf -V 'GRCh38#0#C4:1000'" \
-> input_data/C4_TEST/GRAPH/tmp/pggb_vcf/execution.log 2>&1
-
-cp input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa.*.smooth.final.GRCh38#0#C4.vcf \
-  input_data/C4_TEST/GRAPH/lcpan_C4.vcf
-
-docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/tmp/pggb_vcf/c4_total_pansn.fa 'GRCh38#0#C4' > /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
-docker compose run --rm pggb bash -lc "samtools faidx /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa"
-
-./utils/clean_outputs.sh C4_TEST LCPan
-/usr/bin/time -v -o results/C4_TEST/LCPan/pggb_vg/logs/timing.log docker compose run --rm lcpan bash -lc "/lcpan/bin/lcpan -vg --gfa -t 32 -r /input_data/C4_TEST/GRAPH/c4_reference_pansn.fa -v /input_data/C4_TEST/GRAPH/lcpan_C4.vcf -p /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4 && /lcpan/lcpan-merge.sh /results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.log" > results/C4_TEST/LCPan/pggb_vg/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/LCPan
-python utils/organize_outputs.py LCPan results/C4_TEST/LCPan/pggb_vg/outputs
-```
-
-This produces:
-- `results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4.gfa`
-- optional `results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_wlines.gfa`
-- optional `results/C4_TEST/LCPan/pggb_vg/outputs/lcpan_C4_with_plines.gfa`
-- `results/C4_TEST/LCPan/pggb_vg/outputs/artifacts/`
-- `results/C4_TEST/LCPan/pggb_vg/logs/execution.log`
-- `results/C4_TEST/LCPan/pggb_vg/logs/timing.log`
-
-Notes:
-- `pggb_vg` is the standard top-level LCPan branch; `pggb_vgx` is its expanded-graph sibling branch
-- `from_MC_vg` and `from_MC_vgx` are downstream LCPan branches built from `MC_vg` outputs (`results/<DATASET>/LCPan/mc_vg` and `results/<DATASET>/LCPan/mc_vgx`)
-- helper files used only to make `vg convert` succeed, such as `lcpan_*_vg_ready.gfa` or `lcpan_*_vgfixed.gfa`, belong under `outputs/artifacts/` instead of the top level
-
-For `MinigraphCactus`, use the Cactus container with a generated seqfile and
-keep the run wrapped with `/usr/bin/time` so the logs match the other tools.
-
-Example for `C4_TEST`:
-
-```bash
-./utils/clean_outputs.sh C4_TEST MinigraphCactus
-python utils/make_minigraphcactus_seqfile.py C4_TEST
-/usr/bin/time -v -o results/C4_TEST/MinigraphCactus/logs/timing.log docker compose run --rm minigraphcactus bash -lc "cactus-pangenome /results/C4_TEST/MinigraphCactus/outputs/jobstore /results/C4_TEST/MinigraphCactus/outputs/c4_test_seqfile.txt --outDir /results/C4_TEST/MinigraphCactus/outputs --outName minigraphcactus_C4 --reference C4-GRCh38 --gfa clip --batchSystem single_machine --maxCores 32" > results/C4_TEST/MinigraphCactus/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/MinigraphCactus
-python utils/organize_outputs.py MinigraphCactus results/C4_TEST/MinigraphCactus/outputs
-```
-
-This produces:
-- `results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa`
-- `results/C4_TEST/MinigraphCactus/outputs/minigraphcactus_C4.gfa.gz`
-- `results/C4_TEST/MinigraphCactus/outputs/artifacts/`
-- `results/C4_TEST/MinigraphCactus/logs/execution.log`
-- `results/C4_TEST/MinigraphCactus/logs/timing.log`
-
-Notes from the validated runs:
-- `MinigraphCactus` writes many intermediate files and directories, including `HAL`, `PAF/GAF`, stats, and chromosomal subproblems
-- the final graph to keep is the top-level `*.gfa.gz` output produced by `cactus-pangenome`
-- inspect or decompress compressed workflow artifacts with `bgzip -dc`
-- `utils/organize_outputs.py MinigraphCactus ...` keeps both a canonical compressed graph and an uncompressed `GFA` copy for inspection
-- if a canonical `*_with_plines.gfa` file already exists, rerunning `organize_outputs.py` republishes it at the top level with a dataset-specific name such as `minigraphcactus_C4_with_plines.gfa`
-- the canonical `GFA` already uses `W`-lines; in the standard MinigraphCactus post-processing, only the derived `P`-line view is materialized
-- some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
-
-For `Cactus` (distinct from `MinigraphCactus`), use the `cactus` entrypoint
-instead of `cactus-pangenome`. Generate a dedicated Cactus seqfile (with a
-tree line) using:
-
-```bash
-python utils/make_cactus_seqfile.py C4_TEST
-```
-
-This writes `results/C4_TEST/Cactus/outputs/c4_test_seqfile.txt`, which can be
-used with `cactus jobStore seqFile outputHal`.
-
-After a Cactus run, normalize outputs with:
-
-```bash
-python utils/organize_outputs.py Cactus results/C4_TEST/Cactus/outputs
-```
-
-Canonical layout:
-- `results/C4_TEST/Cactus/outputs/cactus_C4.hal`
-- `results/C4_TEST/Cactus/outputs/artifacts/`
-
-If you export `GFA` from the `HAL`, that `GFA` already uses `W`-lines; derive
-the `P`-line version using the shared commands from `Common GFA Line Encodings`.
-When those exported files are present, `organize_outputs.py` preserves the
-dataset-specific top-level names `cactus_<DATASET_SHORT>.vg`,
-`cactus_<DATASET_SHORT>.gfa`, `cactus_<DATASET_SHORT>_with_wlines.gfa`, and
-`cactus_<DATASET_SHORT>_with_plines.gfa`.
-
-For `ProgressiveCactus`, use the dedicated `progressivecactus` service. At the
-moment the simplest workflow is to reuse `make_cactus_seqfile.py` and write the
-seqfile directly into the `ProgressiveCactus` output directory.
-
-Example for `C4_TEST`:
-
-```bash
-./utils/clean_outputs.sh C4_TEST ProgressiveCactus
-python utils/make_cactus_seqfile.py C4_TEST --output results/C4_TEST/ProgressiveCactus/outputs/c4_test_seqfile.txt
-/usr/bin/time -v -o results/C4_TEST/ProgressiveCactus/logs/timing.log docker compose run --rm progressivecactus bash -lc "cactus /results/C4_TEST/ProgressiveCactus/outputs/jobstore /results/C4_TEST/ProgressiveCactus/outputs/c4_test_seqfile.txt /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal --batchSystem single_machine --maxCores 32" > results/C4_TEST/ProgressiveCactus/logs/execution.log 2>&1
-sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
-python utils/organize_outputs.py ProgressiveCactus results/C4_TEST/ProgressiveCactus/outputs
-```
-
-Optional graph export from HAL:
-
-```bash
-docker compose run --rm progressivecactus bash -lc "hal2vg /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.hal > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg"
-docker compose run --rm progressivecactus bash -lc "vg view -g /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.vg > /results/C4_TEST/ProgressiveCactus/outputs/progressivecactus_C4.gfa"
-sudo chown -R $USER:$USER results/C4_TEST/ProgressiveCactus
-```
-
-This produces:
-- `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.hal`
-- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.vg`
-- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>.gfa`
-- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>_with_wlines.gfa`
-- optional `results/<DATASET>/ProgressiveCactus/outputs/progressivecactus_<DATASET_SHORT>_with_plines.gfa`
-- `results/<DATASET>/ProgressiveCactus/outputs/artifacts/`
-- `results/<DATASET>/ProgressiveCactus/logs/execution.log`
-- `results/<DATASET>/ProgressiveCactus/logs/timing.log`
-
-Notes:
-- `ProgressiveCactus` leaves a `jobstore/` under `outputs/`; if a rerun fails with `Permission denied`, fix ownership or remove the old jobstore before retrying
-- once the `GFA` has been exported from `HAL`, it already uses `W`-lines;
-  derive the `P`-line version using the shared commands from
-  `Common GFA Line Encodings`
-- preview and helper files such as the generated seqfile, `*.head.txt`,
-  `*.preview.txt`, and `*.paths_preview.txt` should live under
-  `outputs/artifacts/` rather than at the top level
-- some output files may be owned by `root` after the container exits, so `chown` is part of the standard post-run cleanup
-
-## Configuration
-
-### tools_config.yml
-
-This file specifies the versions of each tool:
+What a run does, in order:
+
+1. Inspect the dataset and **gate** on `supported_workflows` (refuse if the tool
+   is not enabled for that dataset).
+2. Resolve inputs from the dataset files and parameters from the config
+   (per-tool override, then global fallback).
+3. Execute each declarative step (`prep` / `timed` / `post`): host-side steps run
+   locally with `gawk`/Python; container steps run via `docker compose run`. The
+   timed step(s) are wrapped with `/usr/bin/time`, each writing its own timing log.
+4. Fix output ownership, organize outputs into canonical names, and write
+   `run_manifest.yml`.
+
+Tool commands are declarative specs in `utils/tool_commands.py`
+(`Step` / `ParamSpec` / `ToolCommandSpec`); `run_tool.py` itself does not change
+per tool. Environment roots can be overridden with `CONSTRUCTIONBS_INPUT_DATA`
+and `CONSTRUCTIONBS_RESULTS`.
+
+### Tool status
+
+- **Orchestrated (via `run_tool.py`)** — validated at runtime:
+  Minigraph, Cactus, ProgressiveCactus, MinigraphCactus, MC_vg.
+  These are the tools whose per-sample naming is recoverable from the FASTA
+  filename.
+- **Runbook only** — PGGB, POASTA, Theseus, LCPan. These depend on a PanSN /
+  cross-tool naming convention that is not yet settled, so they still run from
+  the raw command blocks in [`docs/runbook_commands.md`](docs/runbook_commands.md).
+  They re-enter the orchestrator once the cross-tool naming is decided
+  (`utils/make_pansn.py` is a ready, dataset-agnostic PanSN builder for that).
+
+## Reproducibility
+
+### Pinning (`tools_config.yml`)
+
+Each tool declares a human-readable version and the immutable identity the build
+actually uses:
 
 ```yaml
-Cactus:
-  version: v3.1.4
-
 Minigraph:
-  version: 7e3e65c
+  source: git
+  ref: v0.21                                  # human-readable version
+  pin: 7e3e65c5e55a10e2968f32cef5c04eee9330521b  # commit SHA the build checks out
 
-MinigraphCactus:
-  version: v3.1.4
-
-PGGB:
-  version: e25486b
-
-ProgressiveCactus:
-  version: v3.1.4
-
-LCPan:
-  version: v1.1
-
+Cactus:
+  source: image
+  ref: v3.1.4
+  pin: sha256:c0ded40e585f6d5346c64d83485a3f021eab4b400fc4019caf30aff82feb413e
 ```
 
-### Tool Requirements and Input Specifications
+- `source: image` → `pin` is the base-image digest.
+- `source: git` → `pin` is the commit SHA (`git checkout`, or `cargo --rev`).
 
-Tool requirements, service metadata, and input mappings are centralized in
-`tool_registry.py`. The compatibility module `run_config.py` re-exports the
-tool requirements and input specifications consumed by the dataset utilities.
+Base images for git-built tools (ubuntu/rust) are pinned by digest directly in
+the Dockerfile templates in `make_dockerfiles.py`, since they are a property of
+the build recipe rather than a per-tool version. apt package versions are
+intentionally **not** pinned (they vanish from Ubuntu repos on security updates
+and would break builds).
 
-- `TOOL_REGISTRY`: Central per-tool registry for source type, compose service
-  metadata, required directories, and input-resolution rules
-- `TOOL_REQUIREMENTS`: Specifies required directories for each tool
-- `EXPECTED_FILE_TYPES`: Maps directories to expected file extensions
-- `TOOL_INPUT_SPECS`: Defines how tool inputs are resolved from dataset files
+To update a tool: resolve the new commit/digest, set `ref` + `pin`, regenerate,
+rebuild, and re-validate. Note git tags may be **annotated** — dereference to the
+commit (`git ls-remote <repo> 'refs/tags/<tag>^{}'`) or the pin will be wrong.
 
-## Scripts
+### Build
 
-- `utils/check_inputs.py`: Dataset validation and inspection tool
-- `tool_registry.py`: Central tool metadata registry used by Docker and dataset helpers
-- `utils/dataset_utils.py`: Compatibility facade that re-exports dataset helper functions
-- `make_dockerfiles.py`: Dockerfile generation script
-- `make_dockercompose.py`: Docker Compose configuration generator
-- `run_config.py`: Compatibility configuration exports for file types and tool input requirements
-- `utils/clean_outputs.sh`: Reset one dataset/tool results directory before reruns
-- `utils/make_cactus_seqfile.py`: Generate Cactus seqfiles (tree + sample/path mappings) from assembly datasets
-- `utils/make_minigraphcactus_seqfile.py`: Generate seqfiles for Minigraph-Cactus from assembly datasets
-- `utils/organize_outputs.py`: Normalize supported tool outputs into canonical graph files plus artifacts
-
-## Results Structure
-
-Results are organized as:
-
-```
-results/
-├── dataset_name/
-│   ├── tool_name/
-│   │   ├── outputs/
-│   │   └── logs/
+```bash
+python make_dockerfiles.py     # regenerate Dockerfiles/ from tools_config.yml
+python make_dockercompose.py   # regenerate docker-compose.yml + prep results dirs
+docker compose build <service> # e.g. minigraph
 ```
 
-## Adding New Tools
+`Dockerfiles/` and `docker-compose.yml` are **generated** — edit the config and
+templates, not the generated files.
 
-1. Add tool configuration to `tools_config.yml`
-2. Add the tool entry to `tool_registry.py` with source type, compose service metadata, requirements, and input specs
-3. Add the Dockerfile template to `make_dockerfiles.py`
-4. Update any workflow-specific helpers only if the new tool needs custom handling beyond the shared registry
+## Validating datasets
+
+Inspect dataset structure and per-tool runnability:
+
+```bash
+python -m utils.check_inputs                       # all datasets under input_data/
+python -m utils.check_inputs --dataset C4_TEST     # one dataset
+python -m utils.check_inputs --input-data /path --dataset C4_TEST
+```
+
+## Summaries
+
+After runs complete, build compact Markdown summaries for a dataset:
+
+```bash
+python -m utils.summarize_timing_logs <DATASET>    # -> results/<DATASET>/timing_summary.md
+python -m utils.summarize_output_graphs <DATASET>  # -> results/<DATASET>/output_summary.md
+```
+
+Both prefer the `dataset_short` config field when present, falling back to
+stripping a trailing `_TEST`.
+
+## Results structure
+
+```
+results/<DATASET>/<TOOL>/
+├── outputs/                # canonical graph(s) + artifacts/
+│   └── run_manifest.yml    # provenance for the run
+└── logs/                   # execution.log + timing log(s)
+```
+
+## Key scripts
+
+- `run_tool.py` — orchestrator; run one tool on one dataset end to end
+- `utils/tool_commands.py` — declarative per-tool command specs (the 5 orchestrated tools)
+- `tool_registry.py` — central per-tool metadata (source, service, requirements, inputs)
+- `make_dockerfiles.py` / `make_dockercompose.py` — generators for the build environment
+- `utils/check_inputs.py` — dataset validation and inspection
+- `utils/organize_outputs.py` — normalize tool outputs into canonical names + artifacts/
+- `utils/summarize_timing_logs.py` / `utils/summarize_output_graphs.py` — per-dataset summaries
+- `utils/make_cactus_seqfile.py` / `utils/make_minigraphcactus_seqfile.py` — seqfile generators
+- `utils/make_pansn.py` — dataset-agnostic PanSN FASTA builder (ready for the PanSN tools)
+- `utils/clean_outputs.sh` — reset one dataset/tool results directory before reruns
+- `utils/dataset_utils.py` — compatibility facade re-exporting dataset helpers
+
+## Adding a dataset
+
+Plug-and-play, no code: create the dataset directory under the data mount with
+`ASSEMBLIES/` (+ `GRAPH/` for LCPan) and add `config/datasets/<DATASET>.yml`
+with `dataset_short`, `supported_workflows`, and any tool parameters. Nothing in
+the code hardcodes dataset names.
+
+## Adding a tool
+
+1. Add the version pin to `tools_config.yml` (`ref` + `pin`).
+2. Add the tool entry to `tool_registry.py` (source, compose service,
+   requirements, input specs).
+3. Add the Dockerfile template to `make_dockerfiles.py`, then regenerate.
+4. Add a `ToolCommandSpec` to `utils/tool_commands.py` to make it orchestrated.
+5. Validate: `--dry-run` against the runbook, then a real run compared to the
+   validated baseline (md5 for deterministic tools, structural S/L/P/W + bp +
+   sample names for non-deterministic ones).

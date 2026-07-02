@@ -15,12 +15,20 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from run_config import RESULTS_ROOT
-from utils.dataset_common import (
-    LCPAN_TIMING_CANDIDATES,
-    STANDARD_TOOL_ORDER,
-    TOOL_TIMING_LOG_CANDIDATES,
-    first_existing,
-)
+try:
+    from utils.dataset_common import (
+        LCPAN_TIMING_CANDIDATES,
+        STANDARD_TOOL_ORDER,
+        TOOL_TIMING_LOG_CANDIDATES,
+        first_existing,
+    )
+except ModuleNotFoundError:
+    from dataset_common import (
+        LCPAN_TIMING_CANDIDATES,
+        STANDARD_TOOL_ORDER,
+        TOOL_TIMING_LOG_CANDIDATES,
+        first_existing,
+    )
 
 
 ELAPSED_PREFIX = "Elapsed (wall clock) time"

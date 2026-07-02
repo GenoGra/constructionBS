@@ -54,6 +54,24 @@ TOOL_REGISTRY = {
             "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
         },
     },
+    "MC_vg": {
+        # MC_vg is a Minigraph-Cactus-derived, reference-centric indexing branch
+        # (cactus-pangenome --vcf/--giraffe/--gbz then vg autoindex). It runs in
+        # the same minigraphcactus image and consumes the same ASSEMBLIES inputs.
+        "source": "image",
+        "service": {
+            "service_name": "minigraphcactus",
+            "dockerfile": "Dockerfiles/MinigraphCactus/Dockerfile",
+            "command": (
+                "mkdir -p /results && "
+                "cactus-pangenome --help > /results/mc_vg_help.txt 2>&1"
+            ),
+        },
+        "requirements": {"required_dirs": ["ASSEMBLIES", "META"]},
+        "input_specs": {
+            "assemblies": {"source": "ASSEMBLIES", "mode": "many"},
+        },
+    },
     "PGGB": {
         "source": "image",
         "service": {
