@@ -16,10 +16,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 try:
-    from utils.dataset_utils import find_datasets, inspect_dataset
+    from utils.dataset_inspection import find_datasets, inspect_dataset
 except ModuleNotFoundError:
     # Allow direct execution via `python utils/check_inputs.py`.
-    from dataset_utils import find_datasets, inspect_dataset
+    from dataset_inspection import find_datasets, inspect_dataset
 
 
 def format_bool(value: bool) -> str:

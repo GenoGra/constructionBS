@@ -8,7 +8,8 @@ from pathlib import Path
 import yaml
 
 from tool_registry import COMMON_VOLUMES, TOOL_SERVICE_SPECS
-from utils.dataset_utils import create_results_structure, find_datasets, inspect_dataset
+from utils.dataset_inspection import find_datasets, inspect_dataset
+from utils.results_layout import create_results_structure
 
 
 def build_service_definition(tool_name: str) -> tuple[str, dict]:

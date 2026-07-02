@@ -251,7 +251,7 @@ results/<DATASET>/<TOOL>/
 - `utils/make_cactus_seqfile.py` / `utils/make_minigraphcactus_seqfile.py` — seqfile generators
 - `utils/make_pansn.py` — dataset-agnostic PanSN FASTA builder (ready for the PanSN tools)
 - `utils/clean_outputs.sh` — reset one dataset/tool results directory before reruns
-- `utils/dataset_utils.py` — compatibility facade re-exporting dataset helpers
+- `utils/dataset_common.py` / `utils/dataset_inspection.py` / `utils/input_resolution.py` / `utils/results_layout.py` — dataset discovery, inspection, input resolution, and results-layout helpers
 
 ## Adding a dataset
 
