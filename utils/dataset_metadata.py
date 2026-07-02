@@ -12,9 +12,17 @@ import yaml
 
 def load_dataset_metadata_dict(dataset_path: Path) -> Dict[str, Any]:
     """
-    Load META/dataset_info.yml and return a dictionary, or {} on any failure.
+    Load a dataset's config and return a dictionary, or {} on any failure.
+
+    The path is resolved by resolve_metadata_path: the version-controlled
+    config/datasets/<DS>.yml when present, else the legacy META/dataset_info.yml.
     """
-    metadata_path = dataset_path / "META" / "dataset_info.yml"
+    try:
+        from utils.dataset_common import resolve_metadata_path
+    except ModuleNotFoundError:
+        from dataset_common import resolve_metadata_path
+
+    metadata_path = resolve_metadata_path(dataset_path)
     if not metadata_path.exists() or not metadata_path.is_file():
         return {}
 

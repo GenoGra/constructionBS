@@ -1,0 +1,28 @@
+name: MHC_TEST
+dataset_short: MHC
+description: test dataset for validating Minigraph graph construction on MHC assemblies only
+status: test
+
+expected_inputs:
+  assemblies: true
+  graph: true
+
+supported_workflows:
+  cactus: true
+  minigraph: true
+  minigraphcactus: true
+  pggb: true
+  lcpan: true
+  progressivecactus: true
+
+lcpan:
+  reference_fasta: GRAPH/mhc_reference_pansn.fa
+  variants_vcf: GRAPH/lcpan_MHC.vcf
+
+reference_name: MHC-GRCh38
+
+seqfile:
+  sample_name_rewrites:
+    "00GRCh38": "GRCh38"
+
+notes: includes validated assemblies-only runs for Minigraph, Cactus-family workflows, PGGB, and an LCPan workflow driven by a PGGB-derived VCF plus a PanSN-matched single-reference FASTA

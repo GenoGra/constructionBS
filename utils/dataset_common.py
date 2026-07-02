@@ -10,6 +10,11 @@ from typing import Any, Dict, TypedDict
 
 STANDARD_DIRS = ["ASSEMBLIES", "GRAPH", "META"]
 METADATA_RELATIVE_PATH = Path("META") / "dataset_info.yml"
+# Version-controlled home for dataset config, relative to the repo root.
+# Config lives here (config/datasets/<DS>.yml) so a clone carries it; the
+# legacy META/ path under the (symlinked, unversioned) data mount is the
+# fallback, so existing runs keep working with zero migration.
+CONFIG_DATASETS_RELATIVE_DIR = Path("config") / "datasets"
 VALID_INPUT_MODES = {"many", "single"}
 MINIGRAPH_OUTPUT_FILENAME = "minigraph_graph.gfa"
 
@@ -200,6 +205,26 @@ def to_container_path(repo_root: Path, host_path: Path) -> str:
     return f"/input_data/{relative_path.as_posix()}"
 
 
+def resolve_metadata_path(dataset_path: Path) -> Path:
+    """
+    Return the config file to read for one dataset, preferring the
+    version-controlled copy over the legacy in-data location.
+
+    ``dataset_path`` is the dataset directory under ``input_data/`` (e.g.
+    ``<repo>/input_data/C4_TEST``, itself a symlink to the data mount). We
+    resolve the repo root from it and prefer ``config/datasets/<DS>.yml``; when
+    that file is absent we fall back to ``<dataset_path>/META/dataset_info.yml``,
+    so datasets not yet migrated keep loading exactly as before.
+    """
+    dataset_name = dataset_path.name
+    input_root = dataset_path.parent  # <repo>/input_data
+    repo_root = input_root.parent
+    versioned = repo_root / CONFIG_DATASETS_RELATIVE_DIR / f"{dataset_name}.yml"
+    if versioned.is_file():
+        return versioned
+    return dataset_path / METADATA_RELATIVE_PATH
+
+
 def get_sample_name_rewrites(repo_root: Path, dataset_name: str) -> dict[str, str]:
     """
     Read ``seqfile.sample_name_rewrites`` from one dataset's metadata.
@@ -207,7 +232,10 @@ def get_sample_name_rewrites(repo_root: Path, dataset_name: str) -> dict[str, st
     Returns an empty dict when the dataset declares no rewrites, so datasets
     that follow a clean naming convention need no metadata at all.
     """
-    from utils.dataset_metadata import get_metadata_value, load_dataset_metadata_dict
+    try:
+        from utils.dataset_metadata import get_metadata_value, load_dataset_metadata_dict
+    except ModuleNotFoundError:
+        from dataset_metadata import get_metadata_value, load_dataset_metadata_dict
 
     metadata = load_dataset_metadata_dict(repo_root / "input_data" / dataset_name)
     rewrites = get_metadata_value(metadata, "seqfile.sample_name_rewrites")

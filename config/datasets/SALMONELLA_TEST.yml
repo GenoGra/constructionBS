@@ -1,0 +1,18 @@
+name: SALMONELLA_TEST
+dataset_short: SALMONELLA
+description: test dataset for validating graph construction on Salmonella assemblies
+status: test
+
+expected_inputs:
+  assemblies: true
+  graph: false
+
+supported_workflows:
+  cactus: true
+  minigraph: true
+  minigraphcactus: true
+  pggb: true
+  lcpan: false
+  progressivecactus: true
+
+notes: uses primary per-sample assemblies in ASSEMBLIES, sanitized copies for Cactus-family workflows in ASSEMBLIES_CACTUS_SANITIZED, and helper concatenated FASTA files in AUXILIARY_INPUTS for PGGB-style aggregate inputs

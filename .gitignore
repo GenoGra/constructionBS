@@ -209,8 +209,9 @@ __marimo__/
 # Project data inputs/outputs
 results/
 input_data/
-dataset_info.yml
-datasets/
+# Legacy in-data config copies; the versioned config lives in config/datasets/.
+input_data/**/dataset_info.yml
+/datasets/
 
 
 tools/

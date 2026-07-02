@@ -1,0 +1,20 @@
+name: MONKEY_TEST
+dataset_short: MONKEY
+description: test dataset for validating graph construction on split monkeypox assemblies
+status: test
+
+expected_inputs:
+  assemblies: true
+  graph: false
+  reads: false
+  tree: false
+
+supported_workflows:
+  cactus: true
+  minigraph: true
+  minigraphcactus: true
+  pggb: true
+  lcpan: false
+  progressivecactus: true
+
+notes: uses per-sample monkeypox assemblies in ASSEMBLIES plus one aggregate helper FASTA in AUXILIARY_INPUTS; GRAPH inputs are not prepared, so LCPan is not currently plug-and-play

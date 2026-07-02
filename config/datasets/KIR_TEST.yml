@@ -1,0 +1,28 @@
+name: KIR_TEST
+dataset_short: KIR
+description: test dataset for validating graph construction on official GRC/NCBI LRC_KIR locus assemblies
+status: test
+
+expected_inputs:
+  assemblies: true
+  graph: true
+
+supported_workflows:
+  cactus: true
+  minigraph: true
+  minigraphcactus: true
+  pggb: true
+  lcpan: true
+  progressivecactus: true
+
+lcpan:
+  reference_fasta: GRAPH/kir_reference_pansn.fa
+  variants_vcf: GRAPH/lcpan_KIR.vcf
+
+reference_name: KIR-GRCh38
+
+seqfile:
+  sample_name_rewrites:
+    "00GRCh38": "GRCh38"
+
+notes: includes one GRCh38 LRC_KIR reference slice plus five official alternate locus haplotypes downloaded from NCBI/GRC

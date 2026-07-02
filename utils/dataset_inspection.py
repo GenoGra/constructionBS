@@ -22,9 +22,9 @@ from utils.dataset_common import (
     DirectoryFileCheck,
     DirectoryState,
     INPUT_TO_DIR_MAPPING,
-    METADATA_RELATIVE_PATH,
     STANDARD_DIRS,
     ToolRunnability,
+    resolve_metadata_path,
 )
 from utils.input_resolution import get_tool_inputs
 
@@ -93,9 +93,10 @@ def check_dataset_structure(dataset_path: Path) -> DatasetStructure:
 
 def get_metadata_path(dataset_path: Path) -> Path:
     """
-    Return the expected metadata file path for a dataset.
+    Return the metadata file path for a dataset, preferring the
+    version-controlled config/datasets/<DS>.yml over the legacy META/ copy.
     """
-    return dataset_path / METADATA_RELATIVE_PATH
+    return resolve_metadata_path(dataset_path)
 
 
 def load_dataset_metadata(dataset_path: Path) -> DatasetMetadataInfo:

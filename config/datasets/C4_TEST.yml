@@ -1,0 +1,43 @@
+name: C4_TEST
+dataset_short: C4
+description: test dataset for validating Minigraph graph construction on C4 assemblies only
+status: test
+
+expected_inputs:
+  assemblies: true
+  graph: true
+
+supported_workflows:
+  cactus: true
+  minigraph: true
+  minigraphcactus: true
+  mc_vg: true
+  pggb: true
+  lcpan: true
+  progressivecactus: true
+
+lcpan:
+  reference_fasta: GRAPH/c4_reference_pansn.fa
+  variants_vcf: GRAPH/lcpan_C4.vcf
+
+reference_name: C4-GRCh38
+
+# Thread count passed to tools that accept one (e.g. pggb -t). Cross-tool, so
+# it lives at top level. Optional: the orchestrator falls back to a neutral
+# default when absent. Per-tool overrides (e.g. cactus.max_cores) take priority.
+threads: 16
+
+# Cactus-family runs used 32 cores in the validated runbook; override the global
+# threads for those tools so the orchestrator reproduces the same command.
+cactus:
+  max_cores: 32
+progressivecactus:
+  max_cores: 32
+minigraphcactus:
+  max_cores: 32
+
+seqfile:
+  sample_name_rewrites:
+    "00GRCh38": "GRCh38"
+
+notes: includes validated assemblies-only runs for Minigraph, Cactus-family workflows, PGGB, and an LCPan workflow driven by a PGGB-derived VCF plus a PanSN-matched single-reference FASTA
