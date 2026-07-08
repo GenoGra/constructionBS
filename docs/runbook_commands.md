@@ -473,7 +473,8 @@ docker compose run --rm -T theseus bash -lc "\
 sudo chown -R $USER:$USER "${RUN_DIR}"
 python utils/organize_outputs.py Theseus "${OUTPUT_DIR}"
 # Canonical output: ${OUTPUT_DIR}/theseus_${DATASET_SHORT}.gfa
-# `-t 1` selects GFA output (the patched theseus_msa emits P/W path records);
+# `-t 1` selects GFA output (vanilla theseus_msa v1.0.0: the POA graph without
+# P/W path records — the local P/W-lines patch is kept in patches/ but NOT applied);
 # `-t` is the output format, NOT a thread count, and Theseus has no thread flag.
 ```
 

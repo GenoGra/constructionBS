@@ -29,7 +29,7 @@ constructionBS/
 ├── config/
 │   └── datasets/<DS>.yml     # VERSIONED dataset config (see Dataset config)
 ├── Dockerfiles/<Tool>/       # GENERATED per-tool Dockerfiles
-├── patches/                  # source patches applied at build time (e.g. Theseus)
+├── patches/                  # source patches kept for optional future use (not currently applied)
 ├── utils/                    # seqfile generators, output/timing summarizers, helpers
 ├── docs/
 │   └── runbook_commands.md   # raw command blocks for tools not yet orchestrated
@@ -49,8 +49,11 @@ constructionBS/
 
 ## Supported tools
 
-Nine tools are registered. Five are driven end to end by the orchestrator; the
-other four still run via the runbook (see [Tool status](#tool-status)).
+Ten tools are registered. Five are driven end to end by the orchestrator
+(Minigraph, Cactus, ProgressiveCactus, MinigraphCactus, MC_vg); the others still
+run via the runbook (see [Tool status](#tool-status)). MC_vg is the vg pipeline
+and consumes a prior MinigraphCactus run's outputs; `vg` is also registered as a
+standalone image.
 
 | Tool | Type | Container base |
 |------|------|----------------|
@@ -58,11 +61,12 @@ other four still run via the runbook (see [Tool status](#tool-status)).
 | Cactus | image | cactus |
 | ProgressiveCactus | image | cactus |
 | MinigraphCactus | image | cactus (`cactus-pangenome`) |
-| MC_vg | image | cactus + `vg autoindex` branch |
+| MC_vg | image | vg (`vg construct`/`index`/`gbwt`, from MinigraphCactus outputs) |
 | PGGB | image | pggb |
 | POASTA | git | rust (build from source) |
-| Theseus | git | ubuntu (build from source, patched) |
+| Theseus | git | ubuntu (build from source) |
 | LCPan | git | ubuntu (VCF-driven, single-reference) |
+| vg | image | vg (quay.io/vgteam/vg) |
 
 ## Dataset structure
 

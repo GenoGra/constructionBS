@@ -6,12 +6,12 @@ in this module and the refs declared in ``tools_config.yml``.
 import os
 import shutil
 from pathlib import Path
+
 import yaml
 
 from tool_registry import EXPECTED_SOURCE_BY_TOOL
 
 DOCKERFILES = {
-    
     'cactus': '''\
 FROM quay.io/comparative-genomics-toolkit/cactus{}
 
@@ -21,9 +21,8 @@ RUN mkdir input_data
 CMD ["/bin/bash"]
 
     ''',
-
     'minigraph': '''\
-FROM ubuntu:22.04
+FROM ubuntu:22.04@sha256:0e0a0fc6d18feda9db1590da249ac93e8d5abfea8f4c3c0c849ce512b5ef8982
 
 RUN apt-get update && apt-get install -y \
     git \
@@ -43,7 +42,6 @@ RUN mkdir input_data
 CMD ["/bin/bash"]
 
     ''',
-
     'minigraphcactus': '''\
 FROM quay.io/comparative-genomics-toolkit/cactus{}
 
@@ -53,7 +51,6 @@ RUN mkdir input_data
 CMD ["/bin/bash"]
 
     ''',
-
     'pggb': '''\
 FROM ghcr.io/pangenome/pggb{}
 
@@ -62,7 +59,6 @@ RUN mkdir -p /results /input_data
 CMD ["/bin/bash"]
 
     ''',
-
     'progressivecactus': '''\
 FROM quay.io/comparative-genomics-toolkit/cactus{}
 
@@ -72,11 +68,8 @@ RUN mkdir input_data
 CMD ["/bin/bash"]
 
     ''',
-
-
-
     'theseus': '''\
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 
 RUN apt-get update && apt-get install -y \
     git \
@@ -101,37 +94,35 @@ RUN mkdir -p /results /input_data
 CMD ["/bin/bash"]
 
     ''',
-
     'poasta': '''\
-FROM rust:1.86-slim
+FROM rust:1.86-slim@sha256:57d415bbd61ce11e2d5f73de068103c7bd9f3188dc132c97cef4a8f62989e944
 
-RUN apt-get update && apt-get install -y \\
-    git \\
-    build-essential \\
-    time \\
-    bash \\
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    time \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTFLAGS="-C target-cpu=native"
-RUN cargo install --locked --git https://github.com/broadinstitute/poasta --tag {} --root /usr/local
+RUN cargo install --locked --git https://github.com/broadinstitute/poasta --rev {} --root /usr/local
 
 RUN mkdir -p /results /input_data
 
 CMD ["/bin/bash"]
 
     ''',
-
     'lcpan': '''\
-FROM ubuntu:22.04
+FROM ubuntu:22.04@sha256:0e0a0fc6d18feda9db1590da249ac93e8d5abfea8f4c3c0c849ce512b5ef8982
 
-RUN apt-get update && apt-get install -y \\
-    git \\
-    make \\
-    gcc \\
-    g++ \\
-    zlib1g-dev \\
-    time \\
-    bash \\
+RUN apt-get update && apt-get install -y \
+    git \
+    make \
+    gcc \
+    g++ \
+    zlib1g-dev \
+    time \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --recursive https://github.com/BilkentCompGen/lcpan.git /lcpan
@@ -145,9 +136,18 @@ RUN mkdir -p /results /input_data
 ENV PATH="/lcpan:${{PATH}}"
 
 CMD ["/bin/bash"]
-    
-    '''
+
+    ''',
+    'vg': '''\
+FROM quay.io/vgteam/vg{}
+
+RUN mkdir -p /results /input_data
+
+CMD ["/bin/bash"]
+
+    ''',
 }
+
 
 def resolve_ref(tool_name: str, tool_config: dict) -> str:
     """
@@ -177,10 +177,15 @@ def validate_source(tool_name: str, tool_config: dict) -> None:
 
 def build_template_ref(tool_name: str, tool_config: dict) -> str:
     """
-    Build the string inserted into FROM/checkouts from a canonical ref.
-    Image refs support both tags and digests.
+    Build the string inserted into FROM/checkouts, preferring the immutable
+    ``pin`` (image digest or commit SHA) over the human-readable ``ref``.
+
+    For ``source: image`` the result is a ``@sha256:...`` (digest) or ``:tag``
+    suffix appended to the base image in the FROM line. For ``source: git`` it is
+    the bare commit SHA (or tag) passed to ``git checkout`` / ``cargo --rev``.
     """
-    ref = resolve_ref(tool_name, tool_config)
+    pin = tool_config.get("pin")
+    ref = str(pin) if pin else resolve_ref(tool_name, tool_config)
     source = tool_config.get("source", EXPECTED_SOURCE_BY_TOOL[tool_name])
 
     if source == "image":
@@ -192,6 +197,13 @@ def build_template_ref(tool_name: str, tool_config: dict) -> str:
     return ref
 
 
+def render_dockerfile(tool_name: str, tool_config: dict) -> str:
+    ref = build_template_ref(tool_name, tool_config)
+    template = DOCKERFILES[tool_name.lower()]
+
+    return template.format(ref)
+
+
 def main():
     with open('tools_config.yml', 'r') as file:
         config = yaml.safe_load(file)
@@ -199,27 +211,27 @@ def main():
     if not os.path.exists('Dockerfiles'):
         os.makedirs('Dockerfiles')
 
-    DOCKERFILES_FOLDER = os.path.join(os.getcwd(), 'Dockerfiles')
-    os.chdir(DOCKERFILES_FOLDER)
+    dockerfiles_folder = os.path.join(os.getcwd(), 'Dockerfiles')
+    os.chdir(dockerfiles_folder)
 
-    folder_list = [f for f in Path(DOCKERFILES_FOLDER).glob('**/*') if not f.is_file()]
-    for dir in folder_list:
-        shutil.rmtree(os.path.join(DOCKERFILES_FOLDER, dir))
+    folder_list = [f for f in Path(dockerfiles_folder).glob('**/*') if not f.is_file()]
+    for directory in folder_list:
+        shutil.rmtree(os.path.join(dockerfiles_folder, directory))
 
     for tool in config:
         os.makedirs(tool)
 
     for tool, tool_config in config.items():
         validate_source(tool, tool_config)
-        ref = build_template_ref(tool, tool_config)
-        os.chdir(os.path.join(DOCKERFILES_FOLDER, tool))
+        os.chdir(os.path.join(dockerfiles_folder, tool))
         with open('Dockerfile', 'w') as file_tmp:
-            file_tmp.write(DOCKERFILES[tool.lower()].format(ref))
+            file_tmp.write(render_dockerfile(tool, tool_config))
 
     print('\nSuccessfully created dockerfiles for the following tools:')
     for tool in config:
         print(f'\t{tool}')
     print()
+
 
 if __name__ == '__main__':
     main()
