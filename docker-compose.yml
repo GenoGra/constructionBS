@@ -102,8 +102,7 @@ services:
     command:
     - /bin/bash
     - -c
-    - mkdir -p /results && theseus_msa > /results/theseus_help.txt 2>&1 ||
-      true
+    - mkdir -p /results && theseus_msa > /results/theseus_help.txt 2>&1 || true
   poasta:
     stdin_open: true
     tty: true
@@ -140,3 +139,20 @@ services:
     - -c
     - mkdir -p /results && /lcpan/bin/lcpan --help > /results/lcpan_help.txt 2>&1
       || true
+  vg:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfiles/vg/Dockerfile
+    volumes:
+    - type: bind
+      source: ./results
+      target: /results
+    - type: bind
+      source: ./input_data
+      target: /input_data
+    command:
+    - /bin/bash
+    - -c
+    - mkdir -p /results && vg version > /results/vg_help.txt 2>&1 || true

@@ -48,3 +48,8 @@ LCPan:
   source: git
   ref: v1.1
   pin: 8cb89b5013f034e86f8f6aab3a328aab22494c63
+
+vg:
+  source: image
+  ref: v1.71.0
+  pin: sha256:1c448f78c7dfba05f92a24a160a9556d472429fef0daed2c2af12bf2c157151e

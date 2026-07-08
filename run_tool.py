@@ -171,13 +171,33 @@ def build_render_context(
     # context that depends on them (e.g. MC_vg needs ref_name).
     context.update(resolve_params(spec.params, metadata))
 
-    # MC_vg: the vg-autoindex reference FASTA is the assembly whose sample name
-    # equals ref_name. Resolve it agnostically via normalize_sample_name (same
-    # naming used everywhere else), so no dataset-specific path is hardcoded.
+    # MC_vg (vg tool): builds its graph from a PRIOR MinigraphCactus run's
+    # outputs (result_cactus_new.{vcf.gz,gfa.gz}), not from input_data. Expose:
+    #   ref_fasta      : container path of the assembly whose sample == ref_name
+    #                    (vg construct rewrites its header to the VCF contig id)
+    #   mc_vcf / mc_gfa: container paths of the MinigraphCactus VCF / GFA
+    #   mc_*_host      : host equivalents (for readiness checks / debugging)
+    # The reference assembly is resolved agnostically via normalize_sample_name
+    # (same naming used everywhere else), so no dataset-specific path is hardcoded.
     if tool_name == "MC_vg":
-        context["ref_fasta_host"] = _resolve_reference_fasta(
-            dataset_path, context["ref_name"]
-        )
+        ref_fasta_host = _resolve_reference_fasta(dataset_path, context["ref_name"])
+        context["ref_fasta_host"] = ref_fasta_host
+        context["ref_fasta"] = _input_to_container(ref_fasta_host)
+
+        mc_out_host = get_tool_outputs_path(dataset_name, "MinigraphCactus")
+        mc_out = to_container_path(mc_out_host)
+        mc_vcf_host = mc_out_host / "result_cactus_new.vcf.gz"
+        mc_gfa_host = mc_out_host / "result_cactus_new.gfa.gz"
+        if not mc_vcf_host.exists() or not mc_gfa_host.exists():
+            raise OrchestratorError(
+                "MC_vg requires a prior MinigraphCactus run producing "
+                f"result_cactus_new.vcf.gz and .gfa.gz in {mc_out_host}. "
+                "Run MinigraphCactus first (it must emit --vcf --gfa)."
+            )
+        context["mc_vcf_host"] = str(mc_vcf_host)
+        context["mc_gfa_host"] = str(mc_gfa_host)
+        context["mc_vcf"] = f"{mc_out}/result_cactus_new.vcf.gz"
+        context["mc_gfa"] = f"{mc_out}/result_cactus_new.gfa.gz"
 
     return context
 

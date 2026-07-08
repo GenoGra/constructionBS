@@ -150,6 +150,22 @@ TOOL_REGISTRY = {
             "variants": {"source": "GRAPH", "mode": "single", "name_pattern": "lcpan_*.vcf"},
         },
     },
+    "vg": {
+        # vg toolkit as an independent tool. Its construction inputs (reference
+        # FASTA + VCF + GFA-with-W-lines) are the OUTPUTS of a prior MinigraphCactus
+        # run (result_cactus_new.{vcf.gz,gfa.gz}), so vg has no input_specs sourced
+        # from input_data/ — the orchestrator resolves its inputs from the
+        # MinigraphCactus results directory (see TOOL_COMMANDS["MC_vg"]). The tool
+        # runs in its OWN pinned image (quay.io/vgteam/vg), not in the cactus image.
+        "source": "image",
+        "service": {
+            "service_name": "vg",
+            "dockerfile": "Dockerfiles/vg/Dockerfile",
+            "command": "mkdir -p /results && vg version > /results/vg_help.txt 2>&1 || true",
+        },
+        "requirements": {"required_dirs": ["META"]},
+        "input_specs": {},
+    },
 }
 
 

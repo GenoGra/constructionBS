@@ -13,5 +13,5 @@ RUN mkdir -p /results /input_data
 ENV PATH="/lcpan:${PATH}"
 
 CMD ["/bin/bash"]
-    
+
     
