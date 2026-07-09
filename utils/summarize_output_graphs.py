@@ -23,6 +23,7 @@ try:
         LCPAN_GRAPH_CANDIDATES,
         STANDARD_TOOL_ORDER,
     )
+    from utils.results_layout import TOOL_RESULTS_DIR
 except ModuleNotFoundError:
     from dataset_metadata import get_dataset_short_name
     from dataset_common import (
@@ -31,6 +32,7 @@ except ModuleNotFoundError:
         LCPAN_GRAPH_CANDIDATES,
         STANDARD_TOOL_ORDER,
     )
+    from results_layout import TOOL_RESULTS_DIR
 
 
 @dataclass(frozen=True)
@@ -80,9 +82,10 @@ def find_canonical_graph(dataset_dir: Path, tool: str) -> Path | None:
 
     for pattern in patterns:
         resolved_pattern = pattern.format(dataset_short=dataset_short)
+        tool_dir = dataset_dir / TOOL_RESULTS_DIR.get(tool, tool)
         matches = sorted(
             path
-            for path in (dataset_dir / tool).glob(resolved_pattern)
+            for path in tool_dir.glob(resolved_pattern)
             if not any(path.name.endswith(suffix) for suffix in EXCLUDED_GRAPH_SUFFIXES)
         )
 

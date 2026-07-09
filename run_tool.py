@@ -184,20 +184,32 @@ def build_render_context(
         context["ref_fasta_host"] = ref_fasta_host
         context["ref_fasta"] = _input_to_container(ref_fasta_host)
 
+        # MinigraphCactus names its outputs minigraphcactus_<short>.* (its
+        # --outName) and organize_outputs.py moves the VCF into artifacts/ while
+        # the clipped GFA stays in outputs/. Resolve both at their real locations.
         mc_out_host = get_tool_outputs_path(dataset_name, "MinigraphCactus")
         mc_out = to_container_path(mc_out_host)
-        mc_vcf_host = mc_out_host / "result_cactus_new.vcf.gz"
-        mc_gfa_host = mc_out_host / "result_cactus_new.gfa.gz"
+        mc_stem = f"minigraphcactus_{dataset_short}"
+        mc_gfa_host = mc_out_host / f"{mc_stem}.gfa.gz"
+        # VCF: prefer artifacts/ (where organize_outputs.py places it), fall back
+        # to outputs/ if a run left it there.
+        mc_vcf_host = mc_out_host / "artifacts" / f"{mc_stem}.vcf.gz"
+        mc_vcf_rel = f"artifacts/{mc_stem}.vcf.gz"
+        if not mc_vcf_host.exists():
+            alt = mc_out_host / f"{mc_stem}.vcf.gz"
+            if alt.exists():
+                mc_vcf_host = alt
+                mc_vcf_rel = f"{mc_stem}.vcf.gz"
         if not mc_vcf_host.exists() or not mc_gfa_host.exists():
             raise OrchestratorError(
                 "MC_vg requires a prior MinigraphCactus run producing "
-                f"result_cactus_new.vcf.gz and .gfa.gz in {mc_out_host}. "
+                f"{mc_stem}.vcf.gz and {mc_stem}.gfa.gz under {mc_out_host}. "
                 "Run MinigraphCactus first (it must emit --vcf --gfa)."
             )
         context["mc_vcf_host"] = str(mc_vcf_host)
         context["mc_gfa_host"] = str(mc_gfa_host)
-        context["mc_vcf"] = f"{mc_out}/result_cactus_new.vcf.gz"
-        context["mc_gfa"] = f"{mc_out}/result_cactus_new.gfa.gz"
+        context["mc_vcf"] = f"{mc_out}/{mc_vcf_rel}"
+        context["mc_gfa"] = f"{mc_out}/{mc_stem}.gfa.gz"
 
     return context
 

@@ -99,8 +99,8 @@ class ToolCommandSpec:
     clean_before_run: tuple[str, ...] = ()
     # Canonical output filenames (relative to outputs/) for overwrite protection.
     # Most tools follow the default "<tool>_<short>.gfa[.gz]" convention and leave
-    # this empty; MC_vg is the exception (its outputs are named result_cactus_new.gfa,
-    # result_autoindex.gfa, result_autoindex_c.gfa — all three are canonical).
+    # this empty; MC_vg is the exception (its vg-pipeline outputs are named
+    # mc_vg_graph.vg, mc_vg_graph.gfa, mc_vg_walks.gfa — all canonical).
     # When set, the orchestrator guards these instead of the default name.
     canonical_outputs: tuple[str, ...] = ()
     # Optional hook to compute derived context values from resolved inputs/params
@@ -275,10 +275,14 @@ TOOL_COMMANDS["MinigraphCactus"] = ToolCommandSpec(
             kind="run",
             timed=True,
             label="cactus-pangenome",
+            # --vcf is emitted in addition to the clipped GFA: the VCF feeds the
+            # independent vg tool (TOOL_COMMANDS["MC_vg"]), which builds its graph
+            # from this VCF and takes haplotypes from the GFA's W-lines. The GFA
+            # remains MinigraphCactus's own canonical output.
             template=(
                 "cactus-pangenome {out_dir}/jobstore {seqfile} "
                 "--outDir {out_dir} --outName minigraphcactus_{dataset_short} "
-                "--reference {ref_name} --gfa clip "
+                "--reference {ref_name} --gfa clip --vcf "
                 "--batchSystem single_machine --maxCores {max_cores}"
             ),
         ),
@@ -287,103 +291,141 @@ TOOL_COMMANDS["MinigraphCactus"] = ToolCommandSpec(
 )
 
 
-# --- MC_vg ------------------------------------------------------------------
+# --- MC_vg (vg toolkit) -----------------------------------------------------
 #
-# The longest pipeline: cactus-pangenome (with --vcf/--giraffe/--gbz) then a
-# reference-centric vg autoindex branch, then GFA exports. TWO timed steps
-# (cactus-pangenome and vg autoindex), each with its own timing log. Naming is
-# recoverable (make_minigraphcactus_seqfile → sample from filename), so MC_vg
-# qualifies for the orchestrator. Its outputs use fixed names (result_cactus_new,
-# result_autoindex, result_autoindex_c) — all three GFAs are canonical.
+# MC_vg is now the SLOT for the independent vg tool. It does NOT run cactus:
+# it consumes the OUTPUTS of a prior MinigraphCactus run (which must have run
+# first with --vcf --gfa) and builds a variation graph with the canonical vg
+# pipeline: construct -> view -> index -> gbwt -> convert. Every vg step is timed
+# with its own timing log (per-stage measurement).
 #
-# OUT_NAME=result_cactus_new, AUTOINDEX_PREFIX=result_autoindex (as in runbook).
-# {vcf_contig} is extracted at run time from the cactus VCF (like pggb_n): the
-# reference FASTA header must match the VCF contig id.
+# Runs in vg's OWN pinned image (service="vg", quay.io/vgteam/vg:v1.71.0), not in
+# the cactus image. Results live under results/<DATASET>/vg/ (TOOL_RESULTS_DIR
+# maps MC_vg -> vg). Inputs are resolved from the MinigraphCactus results dir
+# (build_render_context fills these with the real minigraphcactus_<short>.* paths):
+#   {mc_vcf}  -> the MinigraphCactus VCF   -> graph construction (vg construct -v)
+#   {mc_gfa}  -> the MinigraphCactus GFA   -> haplotypes (W-lines) for vg gbwt -G
+# {mc_*_host} are the host-side equivalents for host prep steps.
+#
+# Pipeline verified end-to-end on C4_TEST (2026-07-08): construct 160k nodes,
+# gbwt 96 haplotypes/49 samples, final GFA carries 96 W-lines. Rationale for the
+# two departures from the "classic" vg tutorial (both are removed/renamed APIs in
+# vg 1.71.0): GBWT is built from the cactus GFA's W-lines via `vg gbwt -G`, NOT
+# from the VCF (`vg gbwt -v`/`vg index -G -v` yield an EMPTY gbwt on this VCF due
+# to an alt-path naming mismatch); the walk-carrying GFA is exported from the GBZ
+# via `vg convert -f`, since `vg convert -b` does not exist in 1.71.0.
+
+def _mc_vg_context(ctx: dict) -> dict:
+    """
+    Derive the MinigraphCactus output paths that feed vg. The concrete host/
+    container paths are injected by build_render_context (which knows the
+    MinigraphCactus results directory); here we only document the contract.
+    """
+    return {}
+
 
 TOOL_COMMANDS["MC_vg"] = ToolCommandSpec(
     tool_name="MC_vg",
-    service="minigraphcactus",
+    service="vg",
     params=(
         ParamSpec("ref_name", "reference_name", required=True),
         ParamSpec("max_cores", "mc_vg.max_cores", fallback_key="threads",
                   required=False, default=16),
     ),
-    clean_before_run=("jobstore_host",),
+    context_builder=_mc_vg_context,
     canonical_outputs=(
-        "result_cactus_new.gfa",
-        "result_autoindex.gfa",
-        "result_autoindex_c.gfa",
+        "mc_vg_graph.vg",
+        "mc_vg_graph.gfa",
+        "mc_vg_walks.gfa",
     ),
     steps=(
+        # PREP A (host): rewrite the reference FASTA header to match the VCF
+        # contig id, so vg construct applies the variants (verified necessary:
+        # with the original header vg construct produces an invalid/empty graph).
+        # awk, NOT gawk: the vg image ships only awk.
         Step(
             kind="prep",
-            host=True,
-            label="make-seqfile",
+            host=False,
+            service="vg",
+            label="build-ref",
             template=(
-                "python -m utils.make_minigraphcactus_seqfile {dataset} "
-                "--output {seqfile_host}"
+                "VCF_CONTIG=$(bgzip -dc {mc_vcf} "
+                "| awk -F'[=,>]' '/^##contig=<ID=/{{print $3; exit}}') && "
+                "awk -v contig=\"$VCF_CONTIG\" 'NR==1{{print \">\" contig; next}} {{print}}' "
+                "{ref_fasta} > {out_dir}/mc_vg_ref.fa && "
+                "samtools faidx {out_dir}/mc_vg_ref.fa"
             ),
         ),
+        # PREP B (host): tabix the VCF and decompress the cactus GFA (W-lines
+        # source for gbwt).
+        Step(
+            kind="prep",
+            service="vg",
+            label="prep-inputs",
+            template=(
+                "cp {mc_vcf} {out_dir}/mc_vg_variants.vcf.gz && "
+                "tabix -f -p vcf {out_dir}/mc_vg_variants.vcf.gz && "
+                "bgzip -dc {mc_gfa} > {out_dir}/mc_vg_cactus.gfa"
+            ),
+        ),
+        # STEP 1: construct the variation graph from reference + VCF.
+        # -a saves alt-paths; -m 32 keeps nodes GCSA2-indexable.
         Step(
             kind="run",
             timed=True,
-            timing_log="timing_cactus_pangenome.log",
-            label="cactus-pangenome",
+            timing_log="timing_construct.log",
+            service="vg",
+            label="vg-construct",
             template=(
-                "cactus-pangenome {out_dir}/jobstore {seqfile} "
-                "--outDir {out_dir} --outName result_cactus_new "
-                "--reference {ref_name} --vcf --giraffe --gfa --gbz "
-                "--batchSystem single_machine --maxCores {max_cores}"
+                "vg construct -r {out_dir}/mc_vg_ref.fa "
+                "-v {out_dir}/mc_vg_variants.vcf.gz -a -m 32 "
+                "> {out_dir}/mc_vg_graph.vg"
             ),
         ),
-        # Build the vg-autoindex reference FASTA on the HOST: extract the contig
-        # id from the cactus VCF at run time and rewrite the reference header to
-        # match it (awk → host, and the value is only known post-cactus).
-        Step(
-            kind="prep",
-            host=True,
-            label="build-autoindex-ref",
-            template=(
-                "VCF_CONTIG=$(bgzip -dc {out_dir_host}/result_cactus_new.vcf.gz "
-                "| gawk -F'[=,>]' '/^##contig=<ID=/{{print $3; exit}}') && "
-                "gawk -v contig=\"$VCF_CONTIG\" 'NR==1{{print \">\" contig; next}} {{print}}' "
-                "{ref_fasta_host} > {out_dir_host}/result_autoindex_ref.fa"
-            ),
-        ),
+        # STEP 2: export the constructed graph to GFA.
         Step(
             kind="run",
             timed=True,
-            timing_log="timing_vg_autoindex.log",
-            label="vg-autoindex",
-            template=(
-                "vg autoindex --workflow sr-giraffe "
-                "--prefix {out_dir}/result_autoindex "
-                "--ref-fasta {out_dir}/result_autoindex_ref.fa "
-                "--vcf {out_dir}/result_cactus_new.vcf.gz --threads {max_cores}"
-            ),
+            timing_log="timing_view.log",
+            service="vg",
+            label="vg-view",
+            template="vg view {out_dir}/mc_vg_graph.vg > {out_dir}/mc_vg_graph.gfa",
         ),
-        # Export autoindex graph to GFA, then unchop. Write to .tmp then mv so a
-        # failed command does not leave a misleading final output (runbook pattern).
+        # STEP 3: build the XG index.
         Step(
             kind="run",
-            label="export-autoindex-gfa",
+            timed=True,
+            timing_log="timing_index.log",
+            service="vg",
+            label="vg-index",
+            template="vg index -x {out_dir}/mc_vg_graph.xg {out_dir}/mc_vg_graph.vg",
+        ),
+        # STEP 4: build GBWT/GBZ from the cactus GFA W-lines (haplotypes), then
+        # extract the GBWT and the GBWTGraph (.gg).
+        Step(
+            kind="run",
+            timed=True,
+            timing_log="timing_gbwt.log",
+            service="vg",
+            label="vg-gbwt",
             template=(
-                "vg convert -f {out_dir}/result_autoindex.giraffe.gbz "
-                "> {out_dir}/result_autoindex_c.gfa.tmp && "
-                "mv {out_dir}/result_autoindex_c.gfa.tmp {out_dir}/result_autoindex_c.gfa && "
-                "vg mod -u {out_dir}/result_autoindex_c.gfa "
-                "> {out_dir}/result_autoindex.gfa.tmp && "
-                "mv {out_dir}/result_autoindex.gfa.tmp {out_dir}/result_autoindex.gfa"
+                "vg gbwt -G {out_dir}/mc_vg_cactus.gfa --gbz-format "
+                "-g {out_dir}/mc_vg_graph.gbz && "
+                "vg gbwt -Z {out_dir}/mc_vg_graph.gbz -o {out_dir}/mc_vg_graph.gbwt && "
+                "vg gbwt -x {out_dir}/mc_vg_graph.xg -g {out_dir}/mc_vg_graph.gg "
+                "{out_dir}/mc_vg_graph.gbwt"
             ),
         ),
-        # Uncompressed, editor-friendly copy of the cactus GFA (host: bgzip).
+        # STEP 5: export the walk-carrying GFA from the GBZ (grafo + haplotypes).
         Step(
-            kind="post",
-            host=True,
-            label="decompress-cactus-gfa",
+            kind="run",
+            timed=True,
+            timing_log="timing_convert.log",
+            service="vg",
+            label="vg-convert",
             template=(
-                "bgzip -dc {out_dir_host}/result_cactus_new.gfa.gz "
-                "> {out_dir_host}/result_cactus_new.gfa"
+                "vg convert -f {out_dir}/mc_vg_graph.gbz "
+                "> {out_dir}/mc_vg_walks.gfa"
             ),
         ),
     ),

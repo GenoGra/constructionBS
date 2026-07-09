@@ -28,11 +28,25 @@ def get_dataset_results_path(dataset_name: str) -> Path:
     return get_results_root() / dataset_name
 
 
+# Tools whose results directory name differs from their tool name. MC_vg is the
+# vg pipeline (it consumes MinigraphCactus outputs and runs vg construct/index/
+# gbwt); its results live under results/<DATASET>/vg/ while the tool is still
+# invoked as "MC_vg". This is the single point mapping tool -> results folder,
+# so outputs, logs, organize and summaries all agree.
+TOOL_RESULTS_DIR = {
+    "MC_vg": "vg",
+}
+
+
 def get_tool_results_path(dataset_name: str, tool_name: str) -> Path:
     """
     Return the results path for a tool inside a dataset.
+
+    Most tools use a folder named after the tool; TOOL_RESULTS_DIR overrides
+    that mapping for the few whose folder name differs (e.g. MC_vg -> vg).
     """
-    return get_dataset_results_path(dataset_name) / tool_name
+    folder = TOOL_RESULTS_DIR.get(tool_name, tool_name)
+    return get_dataset_results_path(dataset_name) / folder
 
 
 def get_tool_outputs_path(dataset_name: str, tool_name: str) -> Path:

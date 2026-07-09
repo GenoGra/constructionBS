@@ -97,10 +97,14 @@ LCPAN_GRAPH_CANDIDATES = {
 }
 
 # Tools whose timing.log lives at a non-default relative path.
+# MC_vg (vg pipeline) writes one timing log per vg step under results/<DS>/vg/logs.
 TOOL_TIMING_LOG_CANDIDATES = {
     "MC_vg": (
-        "MC_vg/logs/timing.log",
-        "MC_vg/logs/timing_cactus_pangenome.log",
+        "vg/logs/timing_construct.log",
+        "vg/logs/timing_view.log",
+        "vg/logs/timing_index.log",
+        "vg/logs/timing_gbwt.log",
+        "vg/logs/timing_convert.log",
     ),
 }
 
@@ -113,7 +117,7 @@ CANONICAL_GRAPH_PATTERNS = {
         "outputs/minigraphcactus_{dataset_short}.gfa",
         "outputs/minigraphcactus_graph.gfa",
     ),
-    "MC_vg": ("outputs/result_cactus_new.gfa",),
+    "MC_vg": ("outputs/mc_vg_walks.gfa",),
     "Cactus": (
         "outputs/cactus_{dataset_short}.gfa",
         "outputs/cactus_alignment.gfa",
