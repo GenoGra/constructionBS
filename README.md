@@ -29,7 +29,6 @@ constructionBS/
 ├── config/
 │   └── datasets/<DS>.yml     # VERSIONED dataset config (see Dataset config)
 ├── Dockerfiles/<Tool>/       # GENERATED per-tool Dockerfiles
-├── patches/                  # source patches kept for optional future use (not currently applied)
 ├── utils/                    # seqfile generators, output/timing summarizers, helpers
 ├── docs/
 │   └── runbook_commands.md   # raw command blocks for tools not yet orchestrated
@@ -166,8 +165,8 @@ and `CONSTRUCTIONBS_RESULTS`.
 - **Runbook only** — PGGB, POASTA, Theseus, LCPan. These depend on a PanSN /
   cross-tool naming convention that is not yet settled, so they still run from
   the raw command blocks in [`docs/runbook_commands.md`](docs/runbook_commands.md).
-  They re-enter the orchestrator once the cross-tool naming is decided
-  (`utils/make_pansn.py` is a ready, dataset-agnostic PanSN builder for that).
+  They re-enter the orchestrator once the cross-tool naming is decided; a
+  dataset-agnostic PanSN builder is the missing piece for that step.
 
 ## Reproducibility
 
@@ -253,7 +252,6 @@ results/<DATASET>/<TOOL>/
 - `utils/organize_outputs.py` — normalize tool outputs into canonical names + artifacts/
 - `utils/summarize_timing_logs.py` / `utils/summarize_output_graphs.py` — per-dataset summaries
 - `utils/make_cactus_seqfile.py` / `utils/make_minigraphcactus_seqfile.py` — seqfile generators
-- `utils/make_pansn.py` — dataset-agnostic PanSN FASTA builder (ready for the PanSN tools)
 - `utils/clean_outputs.sh` — reset one dataset/tool results directory before reruns
 - `utils/dataset_common.py` / `utils/dataset_inspection.py` / `utils/input_resolution.py` / `utils/results_layout.py` — dataset discovery, inspection, input resolution, and results-layout helpers
 
