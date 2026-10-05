@@ -1,0 +1,431 @@
+<style>
+  :root {
+    --ground: #f6f8fa; --surface: #ffffff; --ink: #15202b; --ink-soft: #44525e;
+    --muted: #6b7a86; --line: #dbe3ea; --line-soft: #e9eef3; --accent: #5a4b9e;
+    --accent-deep: #443680; --accent-wash: #ece9f6; --gold: #a9701f; --gold-wash: #f6ecd8;
+    --code-bg: #eef1f5; --code-ink: #46407a; --ok: #2f7d5b; --ok-wash: #e6f2ec;
+    --blue: #2f6b9e; --blue-wash: #e7f0f8;
+    --shadow: 0 1px 2px rgba(21,32,43,.04), 0 8px 24px rgba(21,32,43,.05);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: "Inter var", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0d1218; --surface: #141a22; --ink: #e6edf4; --ink-soft: #b0bfcb;
+      --muted: #808f9b; --line: #242f39; --line-soft: #1b242d; --accent: #9d8fe0;
+      --accent-deep: #b4a8ee; --accent-wash: #1c1832; --gold: #d3a54e; --gold-wash: #2a2412;
+      --code-bg: #191f28; --code-ink: #b3a8ec; --ok: #5cc493; --ok-wash: #142720;
+      --blue: #5aa2d8; --blue-wash: #15242f;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #f6f8fa; --surface: #ffffff; --ink: #15202b; --ink-soft: #44525e;
+    --muted: #6b7a86; --line: #dbe3ea; --line-soft: #e9eef3; --accent: #5a4b9e;
+    --accent-deep: #443680; --accent-wash: #ece9f6; --gold: #a9701f; --gold-wash: #f6ecd8;
+    --code-bg: #eef1f5; --code-ink: #46407a; --ok: #2f7d5b; --ok-wash: #e6f2ec;
+    --blue: #2f6b9e; --blue-wash: #e7f0f8;
+    --shadow: 0 1px 2px rgba(21,32,43,.04), 0 8px 24px rgba(21,32,43,.05);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1218; --surface: #141a22; --ink: #e6edf4; --ink-soft: #b0bfcb;
+    --muted: #808f9b; --line: #242f39; --line-soft: #1b242d; --accent: #9d8fe0;
+    --accent-deep: #b4a8ee; --accent-wash: #1c1832; --gold: #d3a54e; --gold-wash: #2a2412;
+    --code-bg: #191f28; --code-ink: #b3a8ec; --ok: #5cc493; --ok-wash: #142720;
+    --blue: #5aa2d8; --blue-wash: #15242f;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans);
+    font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { display: grid; grid-template-columns: 1fr; gap: 0; max-width: 1280px; margin: 0 auto;
+    padding: 0 clamp(18px, 4vw, 48px); }
+  @media (min-width: 1040px) { .wrap { grid-template-columns: 232px minmax(0, 1fr); gap: 56px; align-items: start; } }
+
+  header.masthead { grid-column: 1 / -1; padding: clamp(40px, 7vw, 80px) 0 30px; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--accent); display: inline-block; }
+  h1.title { font-size: clamp(30px, 5vw, 46px); line-height: 1.06; margin: 0 0 18px; font-weight: 680;
+    letter-spacing: -.02em; text-wrap: balance; max-width: 24ch; }
+  .lede { font-size: clamp(16px, 2vw, 18.5px); color: var(--ink-soft); max-width: 70ch; margin: 0 0 6px; }
+  .method { margin-top: 22px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow); font-size: 14.5px; color: var(--ink-soft); max-width: 82ch; }
+  .method b { color: var(--ink); font-weight: 620; }
+  .method .legend { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-top: 10px; }
+
+  nav.toc { grid-column: 1; display: none; }
+  @media (min-width: 1040px) { nav.toc { display: block; position: sticky; top: 24px; padding-top: 40px; font-size: 14px; } }
+  nav.toc .toc-label { font-family: var(--mono); font-size: 11.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px; }
+  nav.toc a { display: block; color: var(--ink-soft); text-decoration: none; padding: 5px 0 5px 12px;
+    border-left: 2px solid var(--line); transition: color .15s, border-color .15s; }
+  nav.toc a:hover { color: var(--accent); border-color: var(--accent); }
+
+  main { grid-column: 1; min-width: 0; padding-bottom: 90px; }
+  @media (min-width: 1040px) { main { grid-column: 2; } }
+
+  section { padding-top: 44px; scroll-margin-top: 20px; }
+  h2 { font-size: clamp(21px, 3vw, 27px); font-weight: 660; letter-spacing: -.015em; margin: 0 0 4px;
+    padding-bottom: 12px; text-wrap: balance; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h2 .repo { font-family: var(--mono); font-size: 12.5px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  section > p { color: var(--ink-soft); max-width: 78ch; margin: 12px 0; }
+  .subject-note { font-size: 14px; color: var(--muted); font-style: italic; max-width: 80ch; margin: 6px 0 4px; }
+
+  code { font-family: var(--mono); font-size: .88em; background: var(--code-bg); color: var(--code-ink);
+    padding: 1.5px 6px; border-radius: 5px; white-space: nowrap; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    box-shadow: var(--shadow); margin: 18px 0 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 940px; }
+  thead th { text-align: left; font-weight: 600; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); padding: 11px 12px; background: var(--line-soft); border-bottom: 1px solid var(--line);
+    white-space: nowrap; position: sticky; top: 0; }
+  thead th.d1 { color: var(--blue); }
+  thead th.d2 { color: var(--accent); }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-wash); }
+  td.flag-cell { font-family: var(--mono); font-size: 12px; color: var(--code-ink); font-weight: 500; white-space: nowrap; }
+  td.ty, td.df { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  td.df { color: var(--ink); font-variant-numeric: tabular-nums; }
+  td.rg { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
+  td.rgm { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
+  td.de { color: var(--ink-soft); min-width: 200px; font-size: 12.5px; }
+  td.gr { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; color: var(--accent-deep); }
+  td.use { text-align: center; white-space: nowrap; }
+  td.dash { text-align: center; color: var(--muted); }
+
+  .eff-s, .eff-t, .eff-o { display: inline-block; font-family: var(--mono); font-size: 9px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase; padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
+  .eff-s { background: var(--ok-wash); color: var(--ok); }
+  .eff-t { background: var(--gold-wash); color: var(--gold); }
+  .eff-o { background: var(--code-bg); color: var(--muted); }
+  .use-y, .use-n { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 700;
+    width: 20px; height: 20px; line-height: 20px; border-radius: 5px; text-align: center; }
+  .use-y { background: var(--ok-wash); color: var(--ok); }
+  .use-n { background: var(--code-bg); color: var(--muted); }
+  .lev { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  .count { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 4px; }
+  .count .card { flex: 1 1 140px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px 15px; box-shadow: var(--shadow); }
+  .count .card .k { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 4px; }
+  .count .card .v { font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent-deep); }
+  .count .card.bench .v { color: var(--ok); }
+  .count .card .sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .count .card.input { flex: 2 1 220px; }
+  .count .card.input .v { font-size: 15px; color: var(--blue); font-family: var(--mono); }
+
+  .note { margin: 16px 0; padding: 14px 18px 14px 20px; border-radius: 10px; background: var(--surface);
+    border: 1px solid var(--line); border-left: 3px solid var(--accent); font-size: 13.5px; color: var(--ink-soft); max-width: 88ch; }
+  .note.gold { border-left-color: var(--gold); }
+  .note.blue { border-left-color: var(--blue); }
+  .note b { color: var(--ink); font-weight: 620; }
+  .note .note-head { display: block; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--accent-deep); margin-bottom: 6px; font-weight: 600; }
+  .note.gold .note-head { color: var(--gold); }
+  .note.blue .note-head { color: var(--blue); }
+  .note ul { margin: 8px 0 0; padding-left: 20px; } .note li { margin: 3px 0; }
+
+  .summary td.tool { font-weight: 640; white-space: nowrap; }
+  .summary td.num { text-align: center; font-variant-numeric: tabular-nums; }
+  .summary td.bench { text-align: center; font-variant-numeric: tabular-nums; color: var(--ok); font-weight: 600; }
+
+  footer { grid-column: 1 / -1; border-top: 1px solid var(--line); margin-top: 40px; padding: 26px 0 60px;
+    font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    font-family: var(--mono); }
+  a { color: var(--accent-deep); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">ConstructionBS · Pangenome tooling · documento unificato</p>
+    <h1 class="title">Flag di costruzione &amp; combinazioni di grafo</h1>
+    <p class="lede">Fusione dei due studi: per ogni tool, <b>tutte</b> le flag di costruzione con le colonne del catalogo flag (In uso · Tipo · Default · Range) affiancate a quelle del conteggio combinazioni (Effetto · Leva · Regimi · Grafi · Bench), più tutte le raccomandazioni e i conteggi.</p>
+    <div class="method">
+      <b>Come leggere.</b> Ogni riga è una flag di costruzione (elenco completo del <a href="construction_flags_study.html">catalogo flag</a>). Le colonne <span style="color:var(--blue)">blu</span> vengono dal catalogo; le colonne <span style="color:var(--accent)">viola</span> dallo <a href="graph_combinations_study.html">studio combinazioni</a> e sono compilate solo per le flag che il conteggio considera (altrimenti <span class="dash">—</span>). <b>Effetto</b>: <span class="eff-s">structure</span> (conta per i grafi) · <span class="eff-t">timing</span> · <span class="eff-o">output</span>. <b>In uso</b> = passata da un comando reale del repo (<span class="use-y">Y</span>/<span class="use-n">N</span>). Continue discretizzate in <b>3 regimi</b>. Input <b>fisso</b>: sotto ogni tool il tipo accettato. <b>N_qual</b> = modalità strutturali; <b>N_disc</b> = con i 3 regimi; <b>Bench</b> = set eseguibile.
+      <br><br><b>In uso vs Bench — non sono la stessa cosa.</b> <b>In uso</b> descrive lo stato <em>attuale</em> del repo (la flag è passata da un comando reale, sì/no). <b>Bench</b> è prescrittivo: indica se la flag <em>andrebbe variata</em> nello studio di benchmark. Divergono nei due sensi: una leva di risorsa/output può essere <span class="use-y">Y</span> in uso ma <span class="use-n">N</span> in bench (es. <code>--maxCores</code>, <code>--gfa</code>: passate ma non cambiano il grafo); una leva <span class="eff-s">structure</span> lasciata a default può essere <span class="use-n">N</span> in uso ma <span class="use-y">Y</span> in bench (es. <code>--maskMode</code>, <code>--clip</code>: da esplorare proprio perché cambiano il grafo).
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Indice">
+    <p class="toc-label">Indice</p>
+    <a href="#minigraph">Minigraph</a>
+    <a href="#cactus">Cactus (≡ PC)</a>
+    <a href="#minigraphcactus">MinigraphCactus</a>
+    <a href="#pggb">PGGB</a>
+    <a href="#lcpan">LCPan</a>
+    <a href="#theseus">Theseus</a>
+    <a href="#poasta">POASTA</a>
+    <a href="#vg">vg</a>
+    <a href="#summary">Riassuntiva</a>
+  </nav>
+
+  <main>
+
+    <!-- MINIGRAPH -->
+    <section id="minigraph">
+      <h2>Minigraph <span class="repo">lh3/minigraph · v0.21</span></h2>
+      <p class="subject-note">Comando <code>minigraph -cxggs</code>. Modalità di costruzione unica (<code>--ggen=simple</code>): non esiste un secondo algoritmo di build.</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA (≥2 assemblies)</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">2</div><div class="sub">--inv (con -c fisso)</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">~1.458</div><div class="sub">inv×l×d×L×q×end-cnt×end-frac</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">18</div><div class="sub">inv × l × L</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-x ggs</td><td class="de">Preset che attiva la modalità di costruzione incrementale del grafo (graph generation). Imposta in blocco <code>--ggen simple</code>, <code>-N0</code> e i parametri di chaining del profilo <code>asm</code>. È l'interruttore che mette minigraph in modalità "costruisci" invece di "mappa"</td><td class="rg">lr/sr/asm/ggs</td><td class="gr">—</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Preset</td><td class="df">—</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">—</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">--ggen</td><td class="de"><b>Interruttore reale dell'algoritmo di generazione</b> del grafo: <code>simple</code> (unico algoritmo disponibile, attivato da <code>-x ggs</code>) o <code>none</code> (disattiva la generazione, torna al solo mapping). Non esiste un secondo algoritmo → la costruzione ha una sola modalità</td><td class="rg">simple/none</td><td class="gr">×1</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Enum</td><td class="df">simple</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">simple/none</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-c</td><td class="de">Attiva il base alignment (allineamento a livello di base, non solo di anchor): rende più precisi gli inserti che entrano nel grafo. Raccomandata con <code>ggs</code> — senza, il sorgente emette un warning e il grafo è più grezzo, quindi <code>-c off</code> è una configurazione degenere che non consideriamo</td><td class="rg">on/off</td><td class="gr">×1</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">on/off</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">--inv</td><td class="de">Se rappresentare o meno le inversioni come strutture nel grafo. Con <code>yes</code> (default) i segmenti invertiti diventano varianti di inversione; con <code>no</code> vengono ignorati → cambia quali eventi strutturali entrano nel grafo</td><td class="rg">yes/no</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Enum</td><td class="df">yes</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">no / <b>yes</b></td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-l</td><td class="de">Lunghezza minima (bp) che un allineamento deve avere perché il segmento corrispondente venga inserito nel grafo. Soglia più bassa = più segmenti (anche corti) entrano → grafo più ricco di varianti; più alta = solo inserti lunghi, grafo più conservativo</td><td class="rg">>0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Num</td><td class="df">100k</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">300k/<b>100k</b>/20k</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-d</td><td class="de">Lunghezza minima (bp) di un allineamento perché contribuisca al calcolo della depth (copertura) dei segmenti. Deve essere ≤ <code>-l</code>; influisce su quali segmenti sono considerati ben supportati durante l'estensione del grafo</td><td class="rg">≤ -l</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Num</td><td class="df">20k</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">50k/<b>20k</b>/5k</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-L</td><td class="de">Lunghezza minima (bp) di una variante/inserzione perché venga registrata come nuovo path nel grafo. Soglia più bassa = anche varianti piccole diventano bolle → più dettaglio; più alta = solo varianti grandi</td><td class="rg">≥0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">50</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">250/<b>50</b>/10</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-q</td><td class="de">Mapping quality minima perché l'allineamento che genera un evento venga accettato. Soglia più alta = solo allineamenti affidabili contribuiscono al grafo (meno rumore); più bassa = si accettano anche mapping incerti</td><td class="rg">0–60</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">5</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">20/<b>5</b>/0</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--ref-bonus</td><td class="de">Bonus di score assegnato al subwalk di riferimento durante il chaining, per favorirlo rispetto a percorsi alternativi. È una flag di mapping con effetto solo indiretto sulla struttura; default 0 nel profilo <code>asm</code>/<code>ggs</code></td><td class="rg">≥0</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">0</td><td class="dash">—</td><td class="lev">—</td><td class="rgm">—</td><td class="dash">—</td></tr>
+          <tr><td class="flag-cell">--gg-match-pen</td><td class="de">Penalità applicata alle coppie di anchor che matchano durante la generazione: valori più alti frammentano di più gli inserti. Attiva <b>solo senza</b> <code>-c</code> → con <code>-c</code> on (il nostro caso) è inerte. Default 10 nel sorgente (il man page riporta erroneamente 5)</td><td class="rg">≥0</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">10</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">20/<b>10</b>/3</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--ins-qovlp</td><td class="de">Forza la risoluzione degli overlap tra query durante la generazione degli inserti. Come <code>--gg-match-pen</code>, attiva <b>solo senza</b> <code>-c</code> → inerte nel nostro regime (<code>-c</code> on)</td><td class="rg">yes/no</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Enum</td><td class="df">no</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm"><b>no</b>/yes</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--gg-min-end-cnt</td><td class="de">Numero minimo di minimizer richiesti alle estremità di un segmento perché vi si possano attaccare nuovi segmenti. Parametro specifico dell'algoritmo <code>ggs</code>: controlla quanto facilmente il grafo si ramifica alle estremità</td><td class="rg">>0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Num</td><td class="df">10</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">20/<b>10</b>/3</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--gg-min-end-frac</td><td class="de">Versione frazionaria di <code>--gg-min-end-cnt</code>: frazione minima di minimizer alle estremità (relativa, non assoluta) per attaccare nuovi segmenti. Anch'essa specifica di <code>ggs</code>; regola la soglia di ramificazione in modo proporzionale</td><td class="rg">0.0–1.0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float</td><td class="df">0.1</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">0.2/<b>0.1</b>/0.02</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-K</td><td class="de"><b>Leva memoria</b>: quante basi caricare in RAM per mini-batch. Normalmente incide su RAM/velocità, ma il man page dichiara esplicitamente che <b>non ha effetto in modalità <code>--ggen</code></b> → in costruzione è del tutto inerte</td><td class="rg">>0</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Num</td><td class="df">4g</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-t</td><td class="de">Numero di thread. Solo parallelismo: cambia il tempo di esecuzione, non il grafo. Il repo non lo passa → resta al default (4)</td><td class="rg">≥1</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">4</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-k/-w/-f/-M/-P/-N</td><td class="de">Parametri di <b>seeding e selezione degli allineamenti</b> ereditati dal preset <code>ggs</code>/<code>asm</code>: dimensione dei k-mer (<code>-k</code>) e finestra dei minimizer (<code>-w</code>), frazione dei minimizer ripetitivi ignorati (<code>-f</code>), <code>mask_level</code> per la soppressione dei mapping sovrapposti (<code>-M</code>), emissione di tutte le catene (<code>-P</code>) e numero di allineamenti secondari (<code>-N</code>, forzato a 0 in <code>ggs</code>). Agiscono <em>a monte</em>, come i parametri di chaining sotto: determinano quali ancore e quali allineamenti esistono, quindi influenzano indirettamente la struttura. Lasciati al default del preset → non contati come assi di variazione</td><td class="rg">—</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">vario</td><td class="df">preset ggs/asm</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">default preset</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-r/-n/-m/-j/-g/-U</td><td class="de">Parametri di chaining ereditati dal preset <code>asm</code> (bandwidth, conteggi e soglie di score delle catene, divergenza attesa, gap massimo, occorrenze minimizer). Agiscono <em>a monte</em>: determinano quali catene di allineamento vengono prodotte, quindi influenzano indirettamente la struttura. Lasciati al default del preset → non contati come assi di variazione</td><td class="rg">—</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">continuous</td><td class="df">preset asm</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">default preset</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- CACTUS -->
+    <section id="cactus">
+      <h2>Cactus (≡ ProgressiveCactus) <span class="repo">…/cactus · v3.1.4</span></h2>
+      <p class="subject-note">Comando <code>cactus</code> (progressivo → HAL). Cactus e ProgressiveCactus sono lo stesso tool: una riga, un conteggio.</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA + guide tree</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">8</div><div class="sub">masking(4) × engine(2)</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">~288</div><div class="sub">+ branchScale × maxOutgroups × chromInfo</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">2</div><div class="sub">red vs none</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">--maxCores</td><td class="de">Numero massimo di core usati dai job Toil in parallelo. Cambia solo il tempo di esecuzione, non il grafo prodotto (fallback: variabile <code>threads</code>)</td><td class="rg">≥1</td><td class="gr">0</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Int</td><td class="df">tutti (32)</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--maskMode</td><td class="de">Sceglie il preprocessor di repeat-masking (<code>red</code> di default, oppure <code>lastz</code>/<code>fastan</code>/<code>none</code>). Il masking decide quali regioni ripetute vengono nascoste all'allineamento → cambia quali sequenze si allineano e quindi la topologia e la dimensione del grafo. È l'<b>asse masking</b> primario (vedi nota)</td><td class="rg">red/fastan/lastz/none/default</td><td class="gr">×4</td><td class="use"><span class="use-n">N</span></td><td class="ty">Enum</td><td class="df">default</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm"><b>red</b>/lastz/fastan/none</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">--skipPreprocessor</td><td class="de">Salta <b>tutti</b> i preprocessor (masking incluso): equivale a <code>--maskMode none</code> ma a monte. Nessuna regione viene mascherata → si allinea tutto, grafo più denso. È il caso estremo dello stesso asse masking, non una leva separata</td><td class="rg">on/off</td><td class="gr">↳</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">off</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">(= masking none)</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--remask</td><td class="de">Rimaschera da zero i contig che risultano già completamente mascherati. Agisce <em>dentro</em> il regime masking scelto (aumenta la sensibilità): è un <b>modificatore</b>, non un asse indipendente — moltiplica ×2 solo se un masking è attivo</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Bool</td><td class="df">False</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--fastga</td><td class="de"><b>[sperimentale]</b> Sostituisce l'aligner LASTZ con FastGA nella fase di blast e disattiva anche il masking. Doppio effetto sul grafo (engine diverso + no-mask): è un <b>asse engine</b> a sé, ortogonale al masking, non una sua variante</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">off</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">lastz/<b>FastGA</b></td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--branchScale</td><td class="de">Scala le lunghezze dei rami dell'albero guida: valori più alti = allineamento più permissivo. Seleziona il tier di divergenza usato da LASTZ e dall'annealing → cambia quali omologie vengono catturate nel grafo</td><td class="rg">>0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float</td><td class="df">1.0</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">0.5/<b>1.0</b>/2.0</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--maxOutgroups</td><td class="de">Quanti outgroup (genomi esterni) usare come contesto evolutivo a ogni nodo interno dell'albero progressivo. Più outgroup = più informazione per ricostruire gli ancestri → topologia del grafo diversa. Default effettivo 2 (da config)</td><td class="rg">≥0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">None (2)</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">1/<b>2</b>/4</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--chromInfo</td><td class="de">File a 2 colonne che vincola la scelta degli outgroup, così che ogni cromosoma (es. i sessuali) sia coperto da almeno un outgroup. Cambia la selezione degli outgroup → topologia del progressivo diversa</td><td class="rg">file</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Path</td><td class="df">None</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">file/assente</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--root</td><td class="de">Nodo dell'albero guida fino al quale spingere l'allineamento: definisce il sotto-albero (subset dei genomi) da allineare. Cambia cosa entra nel grafo, ma dipende dall'albero dell'input → input-dipendente</td><td class="rg">nodo albero</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">Str</td><td class="df">None</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">input-dip.</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--gpu</td><td class="de">Usa SegAlign su GPU al posto di LASTZ, con gli stessi <code>lastzArguments</code>: incide soprattutto sulla velocità (differenze di engine minime). <code>--gpu</code> nudo = tutte le GPU disponibili</td><td class="rg">N | all</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int/all</td><td class="df">None</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--consMemory / --lastzMemory</td><td class="de"><b>Leve memoria</b> per i job <code>cactus_consolidated</code> e la fase LASTZ. Default = stima automatica di Toil dal dato in input; <code>--maxMemory</code> fissa il tetto. Non cambiano il grafo, solo la RAM richiesta</td><td class="rg">K/M/G</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Bytes</td><td class="df">stima auto</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--consCores / --lastzCores</td><td class="de"><b>Leve core</b> (gemelle delle rispettive leve memoria): numero di core per ogni job <code>cactus_consolidated</code> e per ogni job LASTZ/SegAlign (quest'ultimo attivo solo con <code>--gpu</code>). Solo parallelismo → cambiano il tempo, non il grafo</td><td class="rg">≥1</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">tutti / maxCores</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--configFile</td><td class="de"><b>Leva-madre</b>: file XML che sovrascrive centinaia di parametri interni (masking, divergenze, banding). Rende lo spazio teoricamente infinito → nello studio è tenuta <b>fissa e fuori-scope</b></td><td class="rg">file XML</td><td class="gr">∞→escl.</td><td class="use"><span class="use-n">N</span></td><td class="ty">Path</td><td class="df">None</td><td><span class="eff-s">structure</span></td><td class="lev">—</td><td class="rgm">fuori-scope</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note gold"><span class="note-head">Asse masking</span><code>--maskMode</code>, <code>--skipPreprocessor</code>, <code>--fastga</code>, <code>--remask</code> <b>non sono 4 assi indipendenti</b>: 1 asse masking (~4 regimi) + <code>--remask</code> (modificatore) + <code>--fastga</code> (asse engine separato).</div>
+      <div class="note"><span class="note-head">Coda Toil (fuori tabella)</span>Cactus eredita da Toil un layer di flag di scheduling che <b>non cambiano il grafo</b> e sono rilevanti solo su cluster/SLURM/cloud (inerti in <code>single_machine</code>): <code>--defaultCores</code>, <code>--maxJobs</code>, <code>--maxLocalJobs</code>, <code>--maxDisk</code>, <code>--scale</code>, <code>--batchSystem</code>, opzioni Slurm/AWS-batch. Non elencate per riga; <code>--maxCores</code> è già in tabella come tetto.</div>
+    </section>
+
+    <!-- MINIGRAPHCACTUS -->
+    <section id="minigraphcactus">
+      <h2>MinigraphCactus <span class="repo">cactus-pangenome · v3.1.4</span></h2>
+      <p class="subject-note">Il grafo esiste in tre livelli annidati <code>full ⊃ clip ⊃ filter</code>. Le flag di export non creano grafi diversi: scelgono quale esportare.</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA (≥2 assemblies)</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">36</div><div class="sub">livelli×split×collapse×lastTrain</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">~2.916</div><div class="sub">+ maxLen×delFilter×delEdge×permissive</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">3</div><div class="sub">full / clip / filter</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">--clip</td><td class="de">Rimuove dal grafo gli stretch di sequenza non allineati più lunghi di N bp, producendo il <b>clip graph</b> (il livello intermedio della gerarchia <code>full ⊃ clip ⊃ filter</code>). Con <code>--clip 0</code> il clipping è disattivato e resta solo il full graph (richiede anche <code>--filter 0</code>)</td><td class="rg">>0 (0=off)</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">10000</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">0/<b>10000</b>/100000</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">--filter</td><td class="de">Rimuove le sequenze presenti in meno di N aplotipi, producendo il <b>filter graph</b> (il livello più ridotto, sottografo del clip). Il reference non viene mai filtrato. Con <code>--filter 0</code> il livello filter coincide col clip</td><td class="rg">≥1 (0=off)</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">2</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">0/<b>2</b>/~10%</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">--mgSplit / --noSplit</td><td class="de">Controllano se la costruzione minigraph è partizionata per cromosoma: <code>--mgSplit</code> costruisce cromosoma per cromosoma (minigraph girato 2 volte), <code>--noSplit</code> allinea tutto insieme senza separare i contig multi-cromosoma. Cambiano il numero di componenti connesse del grafo; sono un asse a 3 stati (default / noSplit / mgSplit)</td><td class="rg">on/off</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Bool</td><td class="df">off</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm"><b>def</b>/noSplit/mgSplit</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--maxLen</td><td class="de">Lunghezza massima (bp) che la base-alignment estende in regioni prive di anchor, in <code>cactus_consolidated</code>. Limita quanto blocchi lunghi vengono allineati → cambia la struttura del grafo. Default 10000 nel wrapper (la doc cita 1M, ma è di <code>cactus-align</code>)</td><td class="rg">>0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">10000</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">5000/<b>10000</b>/100000</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--delFilter</td><td class="de">Scarta i mapping di minigraph che indurrebbero bolle-delezione più lunghe di N bp: elimina le grandi delezioni spurie (es. cromosomiche) che gonfierebbero il grafo. Rimuove edge → cambia la topologia. Default dal config (~1M)</td><td class="rg">>0 bp</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">~1M (config)</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">10k/<b>~1M</b>/10M</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--delEdgeFilter</td><td class="de">In fase di clipping (via <code>vg clip -D</code>) rimuove gli archi che scavalcano più di N bp sul reference. Filtro di topologia complementare a <code>--delFilter</code>; disattivo di default (None)</td><td class="rg">>0 bp</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">None</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm"><b>None</b>/100k/1M</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--permissiveContigFilter</td><td class="de">Abbassa la soglia con cui un contig viene assegnato a un componente cromosomico: soglia più bassa = più contig entrano nel grafo (meno scartati). Default = valore del config (~0.75); passata senza valore vale 0.25; accetta anche un float esplicito</td><td class="rg">0.0–1.0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float/flag</td><td class="df">config (~0.75)</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">~0.75/0.25/valore</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--collapse (+RefPAF)</td><td class="de">Incorpora il self-alignment minimap2 del reference: le duplicazioni tandem diventano cicli nel grafo (e il path di riferimento può diventare ciclico). Cambia la <em>classe</em> topologica del grafo. <code>--collapseRefPAF</code> è la variante con PAF già pre-calcolato</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Bool</td><td class="df">False</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--lastTrain / --scoresFile</td><td class="de">Cambiano la matrice di scoring dell'allineamento base: <code>--lastTrain</code> la ri-stima dai dati con <code>last-train</code>, <code>--scoresFile</code> usa una matrice pre-calcolata (<code>.train</code>). Score diversi → allineamenti e bolle diversi. Mutuamente esclusive</td><td class="rg">on/off / file</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Bool/Str</td><td class="df">False/None</td><td><span class="eff-s">structure</span></td><td class="lev">switch/mode</td><td class="rgm">off/on/file</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--mgCores/--mapCores/--consCores/--indexCores/--vcfwaveCores/--*Memory</td><td class="de">Core per le varie fasi (<code>--mgCores</code> costruzione minigraph, <code>--mapCores</code> mapping minigraph → default <code>None</code>, sovrascrive il cpu di graphmap nel config, <code>--consCores</code> consolidated, <code>--indexCores</code> indicizzazione/VCF, <code>--vcfwaveCores</code> normalizzazione vcfwave → default 2) e memoria per i rispettivi job (incl. <code>--vcfwaveMemory</code>, default 32Gi). Solo risorse/parallelismo: non cambiano il grafo, solo tempo e RAM</td><td class="rg">—</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int/Bytes</td><td class="df">stima auto</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--vcfbub</td><td class="de">Appiattisce i siti annidati (bolle dentro bolle) nel <b>VCF emesso</b>, non nel grafo GFA. È post-processing dell'output VCF → non è una leva di costruzione del grafo</td><td class="rg">>0</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">100000</td><td><span class="eff-o">output</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Degenerazione clip/filter</span>Azzerando le soglie i tre livelli collassano (<code>--clip 0</code> + <code>--filter 0</code> ⇒ solo <code>full</code>). Il masking non è esposto nel wrapper <code>cactus-pangenome</code>.</div>
+      <div class="note"><span class="note-head">Coda Toil (fuori tabella)</span>Come Cactus, <code>cactus-pangenome</code> eredita da Toil un layer di flag di scheduling che <b>non cambiano il grafo</b> e sono rilevanti solo su cluster/SLURM/cloud (inerti nel regime <code>single_machine</code> di default): <code>--maxCores</code>, <code>--defaultCores</code>, <code>--maxJobs</code>, <code>--maxLocalJobs</code>, <code>--scale</code>, <code>--batchSystem</code>, opzioni Slurm/AWS-batch. Non elencate per riga.</div>
+    </section>
+
+    <!-- PGGB -->
+    <section id="pggb">
+      <h2>PGGB <span class="repo">pangenome/pggb · master</span></h2>
+      <p class="subject-note">Pipeline wfmash → seqwish → smoothxg (→ GFA).</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA (multi-FASTA PanSN)</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">64</div><div class="sub">-P × abPOA × global × skip-norm × no-splits</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">46.656</div><div class="sub">4×2⁴×3⁶ (6 continue indip.)</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">10</div><div class="sub">OFAT (una leva alla volta)</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-p, --map-pct-id</td><td class="de">Identità percentuale minima perché due sequenze vengano mappate insieme da wfmash. Soglia alta = solo omologie strette si allineano (grafo più lineare); soglia bassa = più merging fra sequenze divergenti (grafo più intricato)</td><td class="rg">0–100</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float</td><td class="df">90</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">95/<b>90</b>/80</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-s, --segment-length</td><td class="de">Lunghezza dei segmenti (seed) usati da wfmash per il mapping. Segmenti lunghi = mapping più conservativo, meno collasso locale; segmenti corti = più segmenti allineati, grafo più dettagliato e intricato</td><td class="rg">>0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">5000</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">20k/<b>5000</b>/1k</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-l, --block-length</td><td class="de">Lunghezza minima di una catena collineare perché il blocco venga tenuto. Di default è legata a <code>-s</code> (<code>block = 5 × segment</code>): se non la si fissa esplicitamente <b>co-varia con -s</b> → non è un asse di variazione indipendente</td><td class="rg">>0</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">5×segment</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">5×-s</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-c, --n-mappings</td><td class="de">Quanti mapping tenere per ciascun segmento. Valori &gt;1 fanno considerare più allineamenti alternativi (più merging, utile per copie duplicate/poliploidi) → grafo con più connessioni</td><td class="rg">≥1</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">1</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">1/<b>1</b>/4</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-k, --min-match-len</td><td class="de">Lunghezza minima dei match esatti che seqwish usa per costruire il grafo. Valore alto = si scartano i match brevi (meno collasso spurio, grafo più conservativo); valore basso/0 = collasso aggressivo di sequenze simili</td><td class="rg">≥0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">23</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">47/<b>23</b>/0</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-P, --poa-params</td><td class="de">Preset di scoring dell'allineamento POA in smoothxg (<code>asm5</code>/<code>10</code>/<code>15</code>/<code>20</code>): preset più stringenti per sequenze molto simili, più permissivi per divergenti. Cambia come i blocchi vengono riallineati → struttura del grafo smoothed. Sono 4 valori discreti (non una continua)</td><td class="rg">asm5…20</td><td class="gr">×4</td><td class="use"><span class="use-n">N</span></td><td class="ty">preset</td><td class="df">asm20</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">asm5/10/15/<b>20</b></td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-G, --poa-length-target</td><td class="de">Lunghezza target (coppia N,M per le due passate) dei blocchi che smoothxg riallinea con POA. Incide sulla dimensione dei blocchi riallineati e quindi sulla granularità del grafo smoothed</td><td class="rg">N,M</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">N,M</td><td class="df">700,1100</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">bassi/<b>700,1100</b>/alti</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-n, --n-haplotypes</td><td class="de">Numero di aplotipi in input (il repo lo passa come <code>PGGB_N</code>). Alimenta il pad-depth di smoothxg (<code>-Y = pad-max-depth × n</code>) → cambia il padding/normalizzazione dei blocchi POA. Auto-rilevato dai nomi PanSN se non specificato</td><td class="rg">≥1</td><td class="gr">—</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Int</td><td class="df">auto (.fai)</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">auto</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-Y, --exclude-delim</td><td class="de">Carattere delimitatore che raggruppa le sequenze: PGGB evita il self-mapping tra sequenze dello stesso gruppo-aplotipo. Cambia quali allineamenti vengono prodotti (e quindi il grafo)</td><td class="rg">carattere</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">Char</td><td class="df">#</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-O, --poa-padding</td><td class="de">Frazione (× lunghezza media delle sequenze) di padding aggiunto agli estremi dei blocchi POA in smoothxg. Più padding = contesto extra per il riallineamento → cambia i confini dei blocchi nel grafo smoothed</td><td class="rg">0.0–1.0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float</td><td class="df">0.001</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">~0/<b>0.001</b>/magg.</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-d, --pad-max-depth</td><td class="de">Depth massima per aplotipo usata nel padding POA. Insieme a <code>-n</code> determina il valore effettivo di <code>-Y</code> in smoothxg → regola la normalizzazione dei blocchi</td><td class="rg">>0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">100</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">basso/<b>100</b>/alto</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-b, --run-abpoa</td><td class="de">Usa abPOA come motore di allineamento POA al posto di SPOA (default). Engine diverso → allineamenti e quindi grafo smoothed diversi. È un asse ortogonale a <code>-z</code>. Esiste anche la forma corta <code>-b</code></td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm"><b>SPOA</b>/abPOA</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-z, --global-poa</td><td class="de">Sceglie POA globale invece di locale in smoothxg: l'allineamento globale forza l'allineamento sull'intera lunghezza dei blocchi → topologia del grafo smoothed diversa. Ortogonale al motore (<code>--run-abpoa</code>)</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">local/global</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-X, --skip-normalization</td><td class="de">Salta del tutto lo stadio smoothxg: il grafo finale è quello grezzo di seqwish, senza normalizzazione/riallineamento POA. Cambia radicalmente la struttura dell'output (più frammentato)</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-N, --no-splits</td><td class="de">Disabilita lo splitting delle sequenze durante il mapping: le sequenze restano intere invece di essere spezzate in segmenti → cambia come vengono mappate e quindi la struttura del grafo</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-g, --hg-filter-ani-diff</td><td class="de">Filtro sui mapping wfmash basato sulla differenza di ANI (identità media). Se non impostata esplicitamente il valore è derivato da <code>-p</code> (30/10/0) → <b>degenera su -p</b>, non è un asse ortogonale</td><td class="rg">deriv. da -p</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Num/auto</td><td class="df">false→30/10/0</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">config</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-x, --sparse-map</td><td class="de">Frazione di mapping da mantenere (sparsificazione): valori &lt;1 tengono solo una parte degli allineamenti → grafo più sparso. La modalità <code>auto</code> usa un'euristica dipendente dalla topologia del dataset → il grafo non è funzione del solo parametro (input-dipendente)</td><td class="rg">0–1 / auto</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float/str</td><td class="df">1.0</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm"><b>1.0</b>/&lt;1/auto</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-f, --sparse-factor</td><td class="de">Frazione casuale dei match seqwish da mantenere: valori &gt;0 scartano parte dei match → grafo più sparso. Complementare a <code>-x</code> ma agisce a valle, sui match di seqwish invece che sui mapping</td><td class="rg">0.0–1.0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float</td><td class="df">0</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm"><b>0</b>/0.3/0.7</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-j / -e (--*-jump-max)</td><td class="de">Salto massimo di path (<code>--path-jump-max</code>) ed edge (<code>--edge-jump-max</code>) tollerato nel formare i blocchi di smoothxg. Governano come i blocchi vengono spezzati; con default 0 sono di fatto neutri</td><td class="rg">≥0</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">0</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">0</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-a, --input-paf</td><td class="de">Fornisce un PAF già calcolato e <b>salta interamente lo step wfmash</b>: seqwish costruisce il grafo da questo allineamento invece che da quello prodotto internamente. Un PAF diverso produce un grafo completamente diverso → effetto strutturale, ma dipende dal contenuto del file → input-dipendente, non un regime numerico</td><td class="rg">PAF</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">File</td><td class="df">—</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">input-dip.</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-K, --mash-kmer</td><td class="de">Dimensione dei k-mer dello sketch MinHash usato da wfmash per decidere quali sequenze mappare. <b>Non è una pura leva di tuning</b>: cambia la sensibilità del mapping → quali allineamenti entrano nel PAF → il grafo finale. PGGB stesso include il valore nell'identità del PAF (<code>…-K19-H0.001…</code>). Lasciata al default nel benchmark, ma effetto strutturale</td><td class="rg">>0</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">19</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm"><b>19</b> (non variata)</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-F, --mash-kmer-thres</td><td class="de">Frazione dei k-mer più frequenti (ripetitivi) ignorati nel mapping wfmash. Come <code>-K</code>, incide sulla sensibilità del mapping → <b>può cambiare il grafo</b>, non è pura leva di timing. <b>Default 0.001</b> (nel primo studio era erroneamente accorpata a <code>-K</code> con valore 19). Lasciata al default nel benchmark</td><td class="rg">0.0–1.0</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float</td><td class="df">0.001</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm"><b>0.001</b> (non variata)</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-B, --transclose-batch</td><td class="de"><b>Leva memoria/batch</b>: dimensione del batch per la chiusura transitiva di seqwish. Controlla memoria e velocità di quella fase, non il contenuto del grafo → non è una leva di costruzione</td><td class="rg">>0</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Num</td><td class="df">10M</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-t / -T (--poa-threads)</td><td class="de">Thread generali (<code>-t</code>) e thread dedicati alla fase POA (<code>-T</code>). Solo parallelismo: non cambiano il grafo. <code>-t</code> è l'unico passato dal repo</td><td class="rg">≥1</td><td class="gr">0</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Int</td><td class="df">32 / =-t</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note gold"><span class="note-head">Set benchmark PGGB — OFAT (10 run)</span>Lo spazio pieno-fattoriale <code>-p</code>(3)×<code>-s</code>(3)×<code>-k</code>(3)×<code>-P</code>(4) = 108 è <b>troppo grande</b> per un piano di run reale. Si adotta <b>OFAT</b> (una leva alla volta dal default): <b>baseline</b> <code>-p90 -s5000 -k23 -P asm20</code>; poi <code>-p 95</code>, <code>-p 80</code>; <code>-s 20000</code>, <code>-s 1000</code>; <code>-k 47</code>, <code>-k 0</code>; <code>-P asm5</code>, <code>-P asm10</code>, <code>-P asm15</code> → <b>10 run</b>.</div>
+    </section>
+
+    <!-- LCPAN -->
+    <section id="lcpan">
+      <h2>LCPan <span class="repo">BilkentCompGen/lcpan · v1.1</span></h2>
+      <p class="subject-note">Innesta le varianti (non allinea). Due modalità esclusive formano i rami dell'albero.</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA (reference) + VCF</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">3</div><div class="sub">1 (vg) + 2 (vgx)</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">9</div><div class="sub">3 (vg) + 6 (vgx)</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">9</div><div class="sub">tutti gestibili</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-vg / -vgx</td><td class="de">Le due modalità di costruzione, mutuamente esclusive (la radice dell'albero delle combinazioni): <code>-vg</code> = variation graph (ogni segmento suddiviso in sub-segmenti sulle varianti, forza <code>no_overlap</code>); <code>-vgx</code> = expanded variation graph (ogni variante è un arco alternativo). Producono topologie diverse; il repo esegue entrambe</td><td class="rg">vg/vgx</td><td class="gr">×2</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Modalità</td><td class="df">obbligatoria</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">vg / vgx</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-l, --level</td><td class="de">Livello di granularità del parsing localmente consistente (LCP): determina quanto finemente le sequenze vengono segmentate. Valori diversi cambiano la dimensione dei nodi e la struttura delle bolle del grafo. Attiva in entrambi i rami <code>-vg</code>/<code>-vgx</code></td><td class="rg">>0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">5</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">2/<b>5</b>/10</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-s, --no-overlap</td><td class="de">Genera i segmenti LCP senza overlap invece che sovrapposti → cambia i link e la topologia del grafo. Leva libera <b>solo in <code>-vgx</code></b>; in <code>-vg</code> è forzata a on, quindi non è un grado di libertà lì</td><td class="rg">on/off</td><td class="gr">×2 (vgx)</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">on/off</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">--skip-masked</td><td class="de">Esclude i caratteri mascherati (N) dai segmenti, così contengano solo nucleotidi reali → cambia il contenuto del grafo. Attiva <b>solo in modalità rGFA</b>: con output GFA (il nostro caso) è disattivata</td><td class="rg">on/off</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-t, --thread</td><td class="de">Numero di thread per l'esecuzione parallela. Solo parallelismo: non cambia il grafo. Default <code>1</code> nel sorgente (<code>DEFAULT_THREAD_NUMBER</code>); oggi il repo invoca LCPan solo con <code>--help</code>, quindi non lo passa da un comando di costruzione reale</td><td class="rg">≥1</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">1</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--tload-factor</td><td class="de"><b>Leva memoria</b> dedicata: dimensiona la coda di lavoro producer/consumer come <code>tload-factor × n_thread</code> (usata in <code>vg.c</code>/<code>vgx.c</code>). Più alto = buffer più grande = più RAM e throughput. Non cambia il grafo</td><td class="rg">>0</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Float</td><td class="df">2.0</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Albero dei vincoli</span>Ramo <code>-vg</code>: <code>-l</code>(3) × <code>-s</code>(forzato) = 3 grafi. Ramo <code>-vgx</code>: <code>-l</code>(3) × <code>-s</code>(2) = 6 grafi.</div>
+    </section>
+
+    <!-- THESEUS -->
+    <section id="theseus">
+      <h2>Theseus <span class="repo">theseus-lib · v1.0.0 (vanilla)</span></h2>
+      <p class="subject-note">POA aligner single-thread. Il grafo dipende dal rapporto tra i punteggi, non dai valori assoluti.</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA (multi-FASTA PanSN)</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">1</div><div class="sub">default (2 con lag_pruning)</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">54</div><div class="sub">x×o×e×lag, m fisso</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">1</div><div class="sub">scoring raramente variato</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">--match | -m</td><td class="de">Punteggio/penalità di match nell'allineamento POA. Insieme a mismatch/gap definisce lo scoring che determina la topologia del grafo POA. Per convenzione del tool è <b>tenuto fisso a 0</b> → lo spazio effettivo è 3-dimensionale (x, o, e)</td><td class="rg">intero</td><td class="gr">×1</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">0</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">0/<b>0</b>/0</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--mismatch | -x</td><td class="de">Penalità di mismatch. Alzarla rende il mismatch "caro" → l'allineamento preferisce i gap (più bolle nel grafo); abbassarla favorisce il collasso di sequenze simili sugli stessi nodi</td><td class="rg">intero</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">2</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">6/<b>2</b>/1</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--gapo | -o</td><td class="de">Penalità di apertura di un gap. Alta = gap "cari", meno indel e più mismatch inline (grafo con meno bolle da inserzione/delezione); bassa = più indel, più bolle</td><td class="rg">intero</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">3</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">8/<b>3</b>/1</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--gape | -e</td><td class="de">Penalità di estensione del gap (costo per ogni base aggiuntiva di un gap già aperto). Regola quanto lunghi possono diventare gli indel nell'allineamento → forma delle bolle nel grafo POA</td><td class="rg">intero</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">1</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">3/<b>1</b>/1</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">--lag_pruning | -l</td><td class="de">Euristica di accelerazione che pota le diagonali "in ritardo" durante l'allineamento. È pensata per velocizzare, ma può cambiare marginalmente l'allineamento ottimo → potenziale effetto strutturale, per questo la trattiamo come <code>structure</code> e non pura ottimizzazione</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Degenerazione</span>Il grafo POA dipende dal <b>rapporto</b> tra i punteggi, non dai valori assoluti → configurazioni proporzionalmente scalate sono lo stesso grafo.</div>
+    </section>
+
+    <!-- POASTA -->
+    <section id="poasta">
+      <h2>POASTA <span class="repo">broadinstitute/poasta · v0.1.0</span></h2>
+      <p class="subject-note">POA aligner single-thread. Comando <code>poasta align</code>.</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA (multi-FASTA)</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">2</div><div class="sub">-m (global / semi-global)</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">54</div><div class="sub">m(2) × n × g × e</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">2</div><div class="sub">le due modalità di span</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-m, --alignment-span</td><td class="de">Modalità di span dell'allineamento: <code>global</code> (allinea le sequenze per intero), <code>semi-global</code> o <code>ends-free</code> (estremità libere). Cambia come le sequenze si sovrappongono nel grafo POA. <b>In v0.1.0 <code>semi-global ≡ ends-free</code></b> (stesso risultato) → l'asse dà 2 grafi distinti, non 3</td><td class="rg">global/semi-global/ends-free</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Enum</td><td class="df">global</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">global / semi-global</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-n</td><td class="de">Penalità di mismatch nell'allineamento POA. Come per Theseus, alzarla sposta l'allineamento verso i gap → più bolle; abbassarla favorisce il collasso su nodi condivisi</td><td class="rg">≥0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int</td><td class="df">4</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">2/<b>4</b>/8</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-g</td><td class="de">Penalità di apertura gap. Può essere un singolo intero o una coppia <code>a,b</code>: nel secondo caso attiva il modello two-piece affine (due regimi di gap, uno per gap corti e uno per lunghi) → forma delle bolle diversa nel grafo</td><td class="rg">int / a,b</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int|coppia</td><td class="df">6</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">4/<b>6</b>/8</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-e</td><td class="de">Penalità di estensione gap. Come <code>-g</code>, singolo intero o coppia <code>a,b</code> per il modello two-piece affine. Regola quanto costano i gap lunghi → lunghezza degli indel rappresentati nel grafo</td><td class="rg">int / a,b</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">Int|coppia</td><td class="df">2</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">1/<b>2</b>/4</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-I, --graph</td><td class="de">Prende in input un grafo POA esistente e vi allinea nuove sequenze, invece di costruirne uno da zero (costruzione incrementale). È una modalità a sé (ramo separato dell'albero) e non è usata dal repo</td><td class="rg">POA graph</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">File</td><td class="df">—</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">ramo sep.</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- VG -->
+    <section id="vg">
+      <h2>vg <span class="repo">vgteam/vg · v1.71.0</span></h2>
+      <p class="subject-note">Solo <code>vg construct</code> costruisce; <code>index</code>/<code>gbwt</code>/<code>convert</code> sono post-processing non generativo. Due modalità disgiunte (VCF / MSA).</p>
+      <div class="count">
+        <div class="card input"><div class="k">Input</div><div class="v">FASTA+VCF (VCF-mode) / MSA (-M)</div></div>
+        <div class="card"><div class="k">N_qual</div><div class="v">8</div><div class="sub">-S × -f × -i</div></div>
+        <div class="card"><div class="k">N_disc</div><div class="v">~24</div><div class="sub">+ -m, al netto di -f→-l</div></div>
+        <div class="card bench"><div class="k">Benchmark</div><div class="v">3</div><div class="sub">-m con -a (oggi: 1 run fisso)</div></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Flag</th><th>Descrizione</th><th class="d1">Range</th><th class="d2">Grafi</th><th class="d1">In uso</th><th class="d1">Tipo</th><th class="d1">Default</th><th class="d2">Effetto</th><th class="d2">Leva</th><th class="d2">Regimi</th><th class="d2">Bench</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-a, --alt-paths</td><td class="de">Salva nel grafo i path degli alleli alternativi, identificati per hash SHA1. Non cambia nodi/archi (topologia identica), aggiunge solo annotazioni di path — necessarie a valle per costruire il GBWT. Passata dal repo</td><td class="rg">on/off</td><td class="gr">0</td><td class="use"><span class="use-y">Y</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-o">output</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-A, --alt-paths-plain</td><td class="de">Variante di <code>-a</code> che nomina gli alt-path per variant ID invece che per hash SHA1. È un'alternativa sullo stesso asse "alt-path" (non combinabile con <code>-a</code>), e come <code>-a</code> non cambia la topologia</td><td class="rg">on/off</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-o">output</span></td><td class="lev">switch</td><td class="rgm">alt di -a</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-S, --handle-sv</td><td class="de">Include le structural variant (SV) del VCF nella costruzione, invece di ignorarle. Aggiunge nodi e archi che rappresentano le SV → cambia direttamente la topologia del grafo</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-f, --flat-alts</td><td class="de">Non spezza gli alleli alternativi: ogni allele resta un nodo monolitico invece di essere scomposto. Cambia la granularità dei nodi del grafo. <b>Domina <code>-l</code></b>: se attivo, <code>-l</code> diventa irrilevante</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-l, --parse-max</td><td class="de">Soglia in bp oltre la quale gli alleli alternativi non vengono più spezzati (sotto la soglia sì). È la versione "graduata" di <code>-f</code>: regola la granularità dei nodi. Inerte se <code>-f</code> è attivo (che non spezza mai)</td><td class="rg">≥0</td><td class="gr">×3</td><td class="use"><span class="use-n">N</span></td><td class="ty">N</td><td class="df">100</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">16/<b>100</b>/1000</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-i, --no-trim-indels</td><td class="de">Non rimuove la base di riferimento condivisa dagli alleli indel: gli indel vengono rappresentati con una base in più. Cambia come i nodi degli indel sono costruiti → topologia locale diversa</td><td class="rg">on/off</td><td class="gr">×2</td><td class="use"><span class="use-n">N</span></td><td class="ty">Flag</td><td class="df">Off</td><td><span class="eff-s">structure</span></td><td class="lev">switch</td><td class="rgm">off/on</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-m, --node-max</td><td class="de">Lunghezza massima (bp) di un nodo: sopra questa soglia i nodi vengono spezzati (chopping). Valore basso = grafo più frammentato ma indicizzabile con GCSA2 (limite ~1024 bp); alto = nodi più lunghi, meno frammentazione. Il repo passa <code>-m 32</code></td><td class="rg">≤1024 GCSA2</td><td class="gr">×3</td><td class="use"><span class="use-y">Y</span></td><td class="ty">N</td><td class="df">32</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">32/<b>32</b>/256</td><td class="use"><span class="use-y">Y</span></td></tr>
+          <tr><td class="flag-cell">-M, --msa (+ -F, -d)</td><td class="de">Modalità alternativa: costruisce il grafo da un allineamento multiplo (MSA) invece che da reference+VCF (mutuamente esclusiva con quella). <code>-F</code> ne sceglie il formato (fasta/clustal), <code>-d</code> omette i path delle sequenze. Ramo separato, non usato dal repo</td><td class="rg">MSA</td><td class="gr">ramo</td><td class="use"><span class="use-n">N</span></td><td class="ty">File</td><td class="df">—</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">ramo MSA</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-I, --insertions</td><td class="de">FASTA con le sequenze di inserzione referenziate dal VCF: le aggiunge come nuovi nodi/sequenza nel grafo. Il suo effetto dipende dal contenuto del file → input-dipendente, non un regime numerico</td><td class="rg">FASTA</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">File</td><td class="df">—</td><td><span class="eff-s">structure</span></td><td class="lev">continuous</td><td class="rgm">input-dip.</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-R, --region (+ -C)</td><td class="de">Costruisce il grafo solo per la regione/contig indicata (<code>contig[:start-end]</code>) → cambia cosa entra nel grafo. <code>-C</code> interpreta il token come contig intero e dipende da <code>-R</code>. L'effetto dipende dalla regione scelta → input-dipendente</td><td class="rg">contig[:reg]</td><td class="gr">—</td><td class="use"><span class="use-n">N</span></td><td class="ty">Str</td><td class="df">—</td><td><span class="eff-s">structure</span></td><td class="lev">mode</td><td class="rgm">input-dip.</td><td class="use"><span class="use-n">N</span></td></tr>
+          <tr><td class="flag-cell">-z / -N / -t / -p</td><td class="de">Leve non strutturali: <code>-z</code> varianti per regione (parallelizzazione), <code>-N</code> costruisce tutto in RAM prima di serializzare (leva memoria), <code>-t</code> thread, <code>-p</code> progress su stderr. Nessuna cambia il grafo</td><td class="rg">—</td><td class="gr">0</td><td class="use"><span class="use-n">N</span></td><td class="ty">vario</td><td class="df">1024 / off / numCPU</td><td><span class="eff-t">timing</span></td><td class="lev">—</td><td class="rgm">—</td><td class="use"><span class="use-n">N</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Degenerazioni</span><code>-f</code> domina <code>-l</code>; <code>-A</code> è alternativa di <code>-a</code>; <code>-C</code> dipende da <code>-R</code>. Il ramo MSA (<code>-M</code>) è separato e non usato.</div>
+    </section>
+
+    <!-- SUMMARY -->
+    <section id="summary">
+      <h2>Tabella riassuntiva</h2>
+      <p>Ordinati per N_qualitativo. Il cielo teorico (N_disc) mostra quanto il framework comprime lo spazio grezzo.</p>
+      <div class="table-scroll"><table class="summary">
+        <thead><tr><th>Tool</th><th>Input</th><th>N_qualitativo</th><th>N_discretizzato</th><th>Set benchmark</th></tr></thead>
+        <tbody>
+          <tr><td class="tool">Minigraph</td><td class="ty">FASTA</td><td class="num">2</td><td class="num">~1.458</td><td class="bench">18</td></tr>
+          <tr><td class="tool">Cactus (≡ PC)</td><td class="ty">FASTA</td><td class="num">8</td><td class="num">~288</td><td class="bench">2</td></tr>
+          <tr><td class="tool">MinigraphCactus</td><td class="ty">FASTA</td><td class="num">36</td><td class="num">~2.916</td><td class="bench">3</td></tr>
+          <tr><td class="tool">PGGB</td><td class="ty">FASTA</td><td class="num">64</td><td class="num">46.656</td><td class="bench">10</td></tr>
+          <tr><td class="tool">LCPan</td><td class="ty">FASTA+VCF</td><td class="num">3</td><td class="num">9</td><td class="bench">9</td></tr>
+          <tr><td class="tool">Theseus</td><td class="ty">FASTA</td><td class="num">1</td><td class="num">54</td><td class="bench">1</td></tr>
+          <tr><td class="tool">POASTA</td><td class="ty">FASTA</td><td class="num">2</td><td class="num">54</td><td class="bench">2</td></tr>
+          <tr><td class="tool">vg (construct)</td><td class="ty">FASTA+VCF</td><td class="num">8</td><td class="num">~24</td><td class="bench">3</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note blue"><span class="note-head">Come nasce questo documento</span>Unione di <a href="construction_flags_study.html">construction_flags_study</a> (catalogo flag) e <a href="graph_combinations_study.html">graph_combinations_study</a> (conteggio combinazioni). Righe = elenco completo del catalogo; colonne <span style="color:var(--accent)">viola</span> compilate solo dove il conteggio le considera. Flag verificate contro le repo ufficiali alle versioni pinnate.</div>
+    </section>
+
+    <footer>
+      <span>ConstructionBS · unified_study</span>
+      <span>8 tool · flag + combinazioni</span>
+    </footer>
+  </main>
+</div>

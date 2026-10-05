@@ -1,0 +1,325 @@
+<style>
+  :root {
+    --ground: #f6f8fa; --surface: #ffffff; --ink: #15202b; --ink-soft: #44525e;
+    --muted: #6b7a86; --line: #dbe3ea; --line-soft: #e9eef3; --accent: #5a4b9e;
+    --accent-deep: #443680; --accent-wash: #ece9f6; --gold: #a9701f; --gold-wash: #f6ecd8;
+    --code-bg: #eef1f5; --code-ink: #46407a; --ok: #2f7d5b; --ok-wash: #e6f2ec;
+    --blue: #2f6b9e; --blue-wash: #e7f0f8; --red: #b4453a; --red-wash: #f7e8e6;
+    --shadow: 0 1px 2px rgba(21,32,43,.04), 0 8px 24px rgba(21,32,43,.05);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: "Inter var", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0d1218; --surface: #141a22; --ink: #e6edf4; --ink-soft: #b0bfcb;
+      --muted: #808f9b; --line: #242f39; --line-soft: #1b242d; --accent: #9d8fe0;
+      --accent-deep: #b4a8ee; --accent-wash: #1c1832; --gold: #d3a54e; --gold-wash: #2a2412;
+      --code-bg: #191f28; --code-ink: #b3a8ec; --ok: #5cc493; --ok-wash: #142720;
+      --blue: #5aa2d8; --blue-wash: #15242f; --red: #e0776b; --red-wash: #2b1613;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #f6f8fa; --surface: #ffffff; --ink: #15202b; --ink-soft: #44525e;
+    --muted: #6b7a86; --line: #dbe3ea; --line-soft: #e9eef3; --accent: #5a4b9e;
+    --accent-deep: #443680; --accent-wash: #ece9f6; --gold: #a9701f; --gold-wash: #f6ecd8;
+    --code-bg: #eef1f5; --code-ink: #46407a; --ok: #2f7d5b; --ok-wash: #e6f2ec;
+    --blue: #2f6b9e; --blue-wash: #e7f0f8; --red: #b4453a; --red-wash: #f7e8e6;
+    --shadow: 0 1px 2px rgba(21,32,43,.04), 0 8px 24px rgba(21,32,43,.05);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1218; --surface: #141a22; --ink: #e6edf4; --ink-soft: #b0bfcb;
+    --muted: #808f9b; --line: #242f39; --line-soft: #1b242d; --accent: #9d8fe0;
+    --accent-deep: #b4a8ee; --accent-wash: #1c1832; --gold: #d3a54e; --gold-wash: #2a2412;
+    --code-bg: #191f28; --code-ink: #b3a8ec; --ok: #5cc493; --ok-wash: #142720;
+    --blue: #5aa2d8; --blue-wash: #15242f; --red: #e0776b; --red-wash: #2b1613;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans);
+    font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { display: grid; grid-template-columns: 1fr; gap: 0; max-width: 1280px; margin: 0 auto;
+    padding: 0 clamp(18px, 4vw, 48px); }
+  @media (min-width: 1040px) { .wrap { grid-template-columns: 232px minmax(0, 1fr); gap: 56px; align-items: start; } }
+
+  header.masthead { grid-column: 1 / -1; padding: clamp(40px, 7vw, 80px) 0 30px; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--accent); display: inline-block; }
+  h1.title { font-size: clamp(30px, 5vw, 46px); line-height: 1.06; margin: 0 0 18px; font-weight: 680;
+    letter-spacing: -.02em; text-wrap: balance; max-width: 26ch; }
+  .lede { font-size: clamp(16px, 2vw, 18.5px); color: var(--ink-soft); max-width: 72ch; margin: 0 0 6px; }
+  .method { margin-top: 22px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow); font-size: 14.5px; color: var(--ink-soft); max-width: 84ch; }
+  .method b { color: var(--ink); font-weight: 620; }
+  .method .legend { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-top: 10px; }
+
+  nav.toc { grid-column: 1; display: none; }
+  @media (min-width: 1040px) { nav.toc { display: block; position: sticky; top: 24px; padding-top: 40px; font-size: 14px; } }
+  nav.toc .toc-label { font-family: var(--mono); font-size: 11.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px; }
+  nav.toc a { display: block; color: var(--ink-soft); text-decoration: none; padding: 5px 0 5px 12px;
+    border-left: 2px solid var(--line); transition: color .15s, border-color .15s; }
+  nav.toc a:hover { color: var(--accent); border-color: var(--accent); }
+
+  main { grid-column: 1; min-width: 0; padding-bottom: 90px; }
+  @media (min-width: 1040px) { main { grid-column: 2; } }
+
+  section { padding-top: 44px; scroll-margin-top: 20px; }
+  h2 { font-size: clamp(21px, 3vw, 27px); font-weight: 660; letter-spacing: -.015em; margin: 0 0 4px;
+    padding-bottom: 12px; text-wrap: balance; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h2 .repo { font-family: var(--mono); font-size: 12.5px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  section > p { color: var(--ink-soft); max-width: 80ch; margin: 12px 0; }
+  .subject-note { font-size: 14px; color: var(--muted); font-style: italic; max-width: 82ch; margin: 6px 0 4px; }
+
+  code { font-family: var(--mono); font-size: .88em; background: var(--code-bg); color: var(--code-ink);
+    padding: 1.5px 6px; border-radius: 5px; white-space: nowrap; }
+  .cmd-block { font-family: var(--mono); font-size: 12.5px; background: var(--code-bg); color: var(--code-ink);
+    padding: 12px 16px; border-radius: 10px; margin: 14px 0 8px; overflow-x: auto; white-space: pre;
+    border: 1px solid var(--line); line-height: 1.7; }
+  .cmd-block .req { color: var(--accent-deep); font-weight: 700; }
+  .cmd-block .cmt { color: var(--muted); }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    box-shadow: var(--shadow); margin: 18px 0 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 820px; }
+  thead th { text-align: left; font-weight: 600; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); padding: 11px 12px; background: var(--line-soft); border-bottom: 1px solid var(--line);
+    white-space: nowrap; position: sticky; top: 0; }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-wash); }
+  td.flag-cell { font-family: var(--mono); font-size: 12px; color: var(--code-ink); font-weight: 600; white-space: nowrap; }
+  td.kind { font-size: 12px; white-space: nowrap; }
+  td.why { color: var(--ink-soft); font-size: 12.5px; min-width: 220px; }
+  td.src { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+  .lvl { display: inline-block; font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+  .lvl-run { background: var(--red-wash); color: var(--red); }
+  .lvl-graph { background: var(--gold-wash); color: var(--gold); }
+  .lvl-pre { background: var(--blue-wash); color: var(--blue); }
+  .kbadge { display: inline-block; font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+
+  .note { margin: 16px 0; padding: 14px 18px 14px 20px; border-radius: 10px; background: var(--surface);
+    border: 1px solid var(--line); border-left: 3px solid var(--accent); font-size: 13.5px; color: var(--ink-soft); max-width: 90ch; }
+  .note.gold { border-left-color: var(--gold); }
+  .note.blue { border-left-color: var(--blue); }
+  .note.red { border-left-color: var(--red); }
+  .note b { color: var(--ink); font-weight: 620; }
+  .note .note-head { display: block; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--accent-deep); margin-bottom: 6px; font-weight: 600; }
+  .note.gold .note-head { color: var(--gold); }
+  .note.blue .note-head { color: var(--blue); }
+  .note.red .note-head { color: var(--red); }
+
+  .summary td.tool { font-weight: 640; white-space: nowrap; }
+  .summary td.min { font-family: var(--mono); font-size: 11.5px; color: var(--accent-deep); }
+  .summary td.pre { font-size: 12px; color: var(--ink-soft); }
+
+  footer { grid-column: 1 / -1; border-top: 1px solid var(--line); margin-top: 40px; padding: 26px 0 60px;
+    font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    font-family: var(--mono); }
+  a { color: var(--accent-deep); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">ConstructionBS · Pangenome tooling · requisiti minimi</p>
+    <h1 class="title">Flag obbligatorie: cosa serve o il tool non costruisce</h1>
+    <p class="lede">Per ogni tool, il set <b>minimo</b> di argomenti senza cui la costruzione non avviene. Non gli assi da variare (quelli sono negli <a href="unified_study.html">altri studi</a>): qui solo ciò che è <b>non negoziabile</b> per ottenere un grafo.</p>
+    <div class="method">
+      <b>Due livelli di "obbligatorio".</b> Ho distinto ciò che ferma <em>l'esecuzione</em> da ciò che ferma <em>il grafo</em>, perché diversi tool partono lo stesso ma non emettono un grafo utilizzabile.
+      <div class="legend">
+        <span><span class="lvl lvl-run">esecuzione</span> senza questo il tool <b>non parte</b> (errore / usage / exit≠0)</span>
+        <span><span class="lvl lvl-graph">grafo</span> il tool parte ma <b>non produce un grafo</b> (o non uno interoperabile)</span>
+        <span><span class="lvl lvl-pre">precondizione</span> non è un flag: un file/stato richiesto a monte</span>
+      </div>
+      <br><b>Fonte.</b> Ogni requisito è verificato contro il binario/wrapper alla versione pinnata (usage line, validazione del parser o del wrapper, sorgente) e contro l'invocazione reale del repo (<code>utils/tool_commands.py</code> o <code>docs/runbook_commands.md</code>). L'output va quasi sempre su <b>stdout</b>: dove indicato, il redirect <code>&gt;</code> è esso stesso obbligatorio per persistere il grafo.
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Indice">
+    <p class="toc-label">Indice</p>
+    <a href="#minigraph">Minigraph</a>
+    <a href="#cactus">Cactus (≡ PC)</a>
+    <a href="#minigraphcactus">MinigraphCactus</a>
+    <a href="#pggb">PGGB</a>
+    <a href="#lcpan">LCPan</a>
+    <a href="#theseus">Theseus</a>
+    <a href="#poasta">POASTA</a>
+    <a href="#vg">vg</a>
+    <a href="#summary">Riassuntiva</a>
+  </nav>
+
+  <main>
+
+    <!-- MINIGRAPH -->
+    <section id="minigraph">
+      <h2>Minigraph <span class="repo">lh3/minigraph · v0.21</span></h2>
+      <p class="subject-note">Con soli input positional (senza <code>-x ggs</code>) minigraph fa <em>mapping</em>, non costruzione: emette GAF, non un GFA. Il preset è ciò che lo mette in modalità "costruisci".</p>
+      <div class="cmd-block"><span class="req">minigraph -cxggs</span> <span class="req">&lt;ref.fa&gt; &lt;query.fa&gt;</span> [query2.fa …] <span class="req">&gt; out.gfa</span>   <span class="cmt"># -c raccomandato ma opzionale</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-x ggs / --ggen</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">mode</span></td><td class="why">Senza, minigraph resta in modalità mapping (<code>-x lr</code>) e produce allineamenti GAF, non un grafo. <code>--ggen</code> è l'interruttore reale; <code>ggs</code> è il preset raccomandato (setta anche i default graph-gen)</td><td class="src">usage + test</td></tr>
+          <tr><td class="flag-cell">&lt;ref&gt; (1° positional)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Senza argomenti il tool stampa l'usage ed esce con codice 1: non parte</td><td class="src">usage + test (exit 1)</td></tr>
+          <tr><td class="flag-cell">&lt;query&gt; (≥1 positional)</td><td class="kind"><span class="lvl lvl-graph">grafo</span> <span class="kbadge">input</span></td><td class="why">Con il solo reference emette le sue <code>S</code>-line e si ferma: nessun assembly viene aggiunto → non è un pangenoma. Serve almeno un'assembly-query per costruire</td><td class="src">test (no ggen_map)</td></tr>
+          <tr><td class="flag-cell">&gt; out.gfa</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">output</span></td><td class="why">Il GFA va su stdout; senza redirect (o <code>-o FILE</code>) il grafo non viene persistito</td><td class="src">usage</td></tr>
+          <tr><td class="flag-cell">-c</td><td class="kind"><span class="kbadge">racc.</span></td><td class="why"><b>Non obbligatorio.</b> Ometterlo stampa solo un warning e costruisce comunque un GFA valido; migliora la precisione degli inserti. Il repo lo passa (<code>-cxggs</code>)</td><td class="src">test (exit 0)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Nel repo</span><code>utils/tool_commands.py</code>: <code>./minigraph -cxggs {assemblies} &gt; {gfa}</code> — reference prima, poi le query, redirect su stdout. Esattamente il set obbligatorio + il <code>-c</code> raccomandato.</div>
+    </section>
+
+    <!-- CACTUS -->
+    <section id="cactus">
+      <h2>Cactus (≡ ProgressiveCactus) <span class="repo">…/cactus · v3.1.4</span></h2>
+      <p class="subject-note">Tre argomenti posizionali, tutti senza default (fuori dalle parentesi quadre nell'usage argparse). Nessun flag opzionale è obbligatorio.</p>
+      <div class="cmd-block"><span class="req">cactus &lt;jobStore&gt; &lt;seqFile&gt; &lt;outputHal&gt;</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">jobStore (1° pos.)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">jobstore</span></td><td class="why">Positional argparse (no default): Toil ha bisogno di un percorso per lo stato del workflow</td><td class="src">usage line</td></tr>
+          <tr><td class="flag-cell">seqFile (2° pos.)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Positional (no default): senza il file dei sample non c'è input da allineare</td><td class="src">usage line</td></tr>
+          <tr><td class="flag-cell">outputHal (3° pos.)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">output</span></td><td class="why">Positional (no default): percorso del HAL di output</td><td class="src">usage line</td></tr>
+          <tr><td class="flag-cell">albero Newick nel seqFile</td><td class="kind"><span class="lvl lvl-pre">precondizione</span></td><td class="why">Il seqFile deve avere alla riga 1 un albero guida Newick (non inferito automaticamente in modalità progressiva). È contenuto del file, non un flag, ma senza il run fallisce</td><td class="src">formato seqFile + repo</td></tr>
+          <tr><td class="flag-cell">jobStore non pre-esistente</td><td class="kind"><span class="lvl lvl-pre">precondizione</span></td><td class="why">Per un run fresco (senza <code>--restart</code>) il jobStore dev'essere assente/vuoto, altrimenti Toil esce in errore. Il repo lo pulisce prima</td><td class="src">Toil + repo</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Nel repo</span><code>utils/tool_commands.py</code>: <code>cactus {jobstore} {seqfile} {hal} --batchSystem single_machine --maxCores {n}</code>. I tre positional + due flag opzionali (non obbligatori). Il seqFile con albero è generato da <code>make_cactus_seqfile.py</code>; il jobstore è ripulito prima di ogni run.</div>
+    </section>
+
+    <!-- MINIGRAPHCACTUS -->
+    <section id="minigraphcactus">
+      <h2>MinigraphCactus <span class="repo">cactus-pangenome · v3.1.4</span></h2>
+      <p class="subject-note">Come Cactus ha 2 positional, ma in più richiede 3 opzioni senza default: <code>--outDir</code>, <code>--outName</code>, <code>--reference</code> (compaiono senza parentesi quadre nell'usage → argparse-required).</p>
+      <div class="cmd-block"><span class="req">cactus-pangenome &lt;jobStore&gt; &lt;seqFile&gt; --outDir &lt;DIR&gt; --outName &lt;NAME&gt; --reference &lt;SAMPLE&gt;</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">jobStore (1° pos.)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">jobstore</span></td><td class="why">Positional richiesto: percorso dello stato Toil</td><td class="src">usage line</td></tr>
+          <tr><td class="flag-cell">seqFile (2° pos.)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Positional richiesto: file dei sample → FASTA</td><td class="src">usage line</td></tr>
+          <tr><td class="flag-cell">--outDir</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">output</span></td><td class="why"><code>(default: None)</code>, non fra parentesi quadre nell'usage → argparse esce con "the following arguments are required"</td><td class="src">help (default None)</td></tr>
+          <tr><td class="flag-cell">--outName</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">output</span></td><td class="why"><code>(default: None)</code>, required: basename dell'output non definito senza</td><td class="src">help (default None)</td></tr>
+          <tr><td class="flag-cell">--reference</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">required-opt</span></td><td class="why">Nessun default, required: MC ha bisogno di un sample di riferimento (il primo resta unclipped/uncollapsed)</td><td class="src">help (no default)</td></tr>
+          <tr><td class="flag-cell">--gfa / --vcf</td><td class="kind"><span class="lvl lvl-graph">grafo</span></td><td class="why"><b>Non obbligatori per partire</b>, ma servono per <em>ottenere</em> il GFA/VCF in uscita (default off). Il repo passa <code>--gfa clip --vcf</code></td><td class="src">help + repo</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Nel repo</span><code>utils/tool_commands.py</code>: <code>cactus-pangenome {jobstore} {seqfile} --outDir {dir} --outName minigraphcactus_{ds} --reference {ref} --gfa clip --vcf --batchSystem single_machine --maxCores {n}</code>. Il valore di <code>--reference</code> viene dai metadati (<code>ParamSpec reference_name, required=True</code>).</div>
+    </section>
+
+    <!-- PGGB -->
+    <section id="pggb">
+      <h2>PGGB <span class="repo">pangenome/pggb · v0.7.5</span></h2>
+      <p class="subject-note">Il wrapper bash esce con errore esplicito se mancano <code>-i</code>/<code>-o</code> o l'indice <code>.fai</code>. <code>-n</code> diventa obbligatorio solo se l'input non rispetta PanSN.</p>
+      <div class="cmd-block"><span class="req">pggb -i &lt;input.fasta&gt; -o &lt;output_dir&gt;</span>   <span class="cmt"># richiede input.fasta.fai già presente</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-i, --input-fasta</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Il wrapper controlla <code>-i</code> e <code>-o</code> insieme: se manca uno dei due → <code>ERROR: mandatory argument</code> + exit</td><td class="src">wrapper L298-300</td></tr>
+          <tr><td class="flag-cell">-o, --output-dir</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">output</span></td><td class="why">Stesso controllo: senza directory di output il wrapper esce</td><td class="src">wrapper L298-300</td></tr>
+          <tr><td class="flag-cell">&lt;input&gt;.fai</td><td class="kind"><span class="lvl lvl-pre">precondizione</span></td><td class="why">Non è un flag: l'indice <code>samtools faidx</code> dell'input deve già esistere, altrimenti hard exit</td><td class="src">wrapper L301-303</td></tr>
+          <tr><td class="flag-cell">-n, --n-haplotypes</td><td class="kind"><span class="lvl lvl-run">esecuzione*</span> <span class="kbadge">condizionale</span></td><td class="why"><b>Obbligatorio solo se</b> l'input non rispetta PanSN. Con header PanSN viene auto-derivato dal <code>.fai</code>; senza PanSN e senza <code>-n≥1</code> → exit</td><td class="src">wrapper L325-333, L373-375</td></tr>
+          <tr><td class="flag-cell">-t / -p / -s</td><td class="kind"><span class="kbadge">opz.</span></td><td class="why"><b>Mai obbligatori</b>: default riempiti dal wrapper (<code>-t</code>=tutti i core, <code>-p</code>=90, <code>-s</code>=5000)</td><td class="src">wrapper</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note gold"><span class="note-head">Nel repo</span>PGGB non è ancora modellato nell'orchestratore; l'invocazione reale è nel runbook: <code>samtools faidx {input}</code> poi <code>pggb -i {input} -n {PGGB_N} -t {THREADS} -o {out}</code>. Passa <code>-n</code> in modo <em>difensivo</em> (l'input è già PanSN) e <code>-t</code> come override — nessuno dei due è richiesto dal wrapper per quell'input.</div>
+    </section>
+
+    <!-- LCPAN -->
+    <section id="lcpan">
+      <h2>LCPan <span class="repo">BilkentCompGen/lcpan · v1.1</span></h2>
+      <p class="subject-note">La modalità (<code>-vg</code>/<code>-vgx</code>) è <code>argv[1]</code> obbligatorio; il parser esce se mancano reference o VCF. Serve anche il <code>.fai</code> del reference a runtime.</p>
+      <div class="cmd-block"><span class="req">lcpan -vg  -r &lt;ref.fa&gt; -v &lt;var.vcf&gt;</span>   <span class="cmt"># oppure -vgx; ref.fa.fai deve esistere</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-vg | -vgx (argv[1])</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">mode</span></td><td class="why">Se manca (o non è né vg né vgx) → usage + exit. Modalità mutuamente esclusiva e obbligatoria come primo argomento</td><td class="src">opt_parser.c</td></tr>
+          <tr><td class="flag-cell">-r, --ref</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Se <code>fasta_path</code> resta NULL → <code>[ERROR] Missing reference file</code> + exit</td><td class="src">opt_parser.c</td></tr>
+          <tr><td class="flag-cell">-v, --vcf</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">In modalità vg/vgx, se <code>vcf_path</code> è NULL → <code>[ERROR] Missing VCF file</code> + exit</td><td class="src">opt_parser.c</td></tr>
+          <tr><td class="flag-cell">&lt;ref&gt;.fai</td><td class="kind"><span class="lvl lvl-pre">precondizione</span></td><td class="why">Dopo il parsing valida <code>&lt;ref&gt;.fai</code>: se non apribile → exit. Il reference dev'essere pre-indicizzato (<code>samtools faidx</code>)</td><td class="src">source + usage</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note red"><span class="note-head">Nel repo — solo placeholder</span>Oggi il repo esegue LCPan <b>solo con <code>--help</code></b> (docker-compose + tool_registry, con <code>|| true</code>). Il registry dichiara gli input previsti (<code>-r</code> = <code>GRAPH/*_reference_pansn.fa</code>, <code>-v</code> = <code>GRAPH/lcpan_*.vcf</code>) ma nessun codice li passa ancora. Un run reale richiederebbe <code>-vg|-vgx -r … -v …</code> + il <code>.fai</code> pre-generato.</div>
+    </section>
+
+    <!-- THESEUS -->
+    <section id="theseus">
+      <h2>Theseus <span class="repo">theseus-lib · v1.0.0</span></h2>
+      <p class="subject-note">Costruzione via <code>theseus_msa</code>. <code>-s</code>/<code>-f</code> sono <code>[Required]</code>; <code>-t 1</code> non è richiesto dal parser ma senza di esso l'output è un MSA, non un grafo.</p>
+      <div class="cmd-block"><span class="req">theseus_msa -s &lt;input.fa&gt; -f &lt;output.gfa&gt; -t 1</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-s, --sequences</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Ometterlo → <code>Missing required arguments</code> + usage, non parte</td><td class="src">usage [Required] + test</td></tr>
+          <tr><td class="flag-cell">-f, --output</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">output</span></td><td class="why">Ometterlo → <code>Missing required arguments</code>, rifiuta di eseguire</td><td class="src">usage [Required] + test</td></tr>
+          <tr><td class="flag-cell">-t 1, --output_type</td><td class="kind"><span class="lvl lvl-graph">grafo</span> <span class="kbadge">output-type</span></td><td class="why">Il parser NON lo richiede (gira a exit 0), ma il default è <code>0=MSA</code>: senza <code>-t 1</code> l'output è un allineamento multiplo FASTA-like, <b>non un GFA</b>. Per costruire un grafo è di fatto obbligatorio</td><td class="src">usage (default 0) + test + repo</td></tr>
+          <tr><td class="flag-cell">-m / -x / -o / -e / -l</td><td class="kind"><span class="kbadge">opz.</span></td><td class="why"><b>Non obbligatori</b>: scoring con default (0/2/3/1) e lag_pruning opzionale</td><td class="src">usage</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note gold"><span class="note-head">Nel repo — runbook-only</span>Theseus non è nell'orchestratore per scelta. Runbook: <code>theseus_msa -s /{PAN_INPUT} -f /{OUTPUT_DIR}/theseus_{DS}.gfa -t 1</code>. Il commento del runbook nota che <code>-t 1</code> seleziona l'output GFA e che <code>-t</code> è il formato, non un conteggio thread (Theseus è single-thread). La patch P/W-lines in <code>patches/theseus/</code> è tenuta ma <b>non applicata</b> → GFA POA vanilla.</div>
+    </section>
+
+    <!-- POASTA -->
+    <section id="poasta">
+      <h2>POASTA <span class="repo">broadinstitute/poasta · v0.1.0</span></h2>
+      <p class="subject-note">Comando <code>poasta align</code>. Unico argomento strettamente richiesto: il positional <code>&lt;SEQUENCES&gt;</code>. Ma il default di <code>-O</code> è un formato binario proprietario, non un grafo interoperabile.</p>
+      <div class="cmd-block"><span class="req">poasta align -O gfa</span> [-o out.gfa] <span class="req">&lt;input.fasta&gt;</span>   <span class="cmt"># senza -o → stdout</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">&lt;SEQUENCES&gt; (positional)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Ometterlo → <code>error: the following required arguments were not provided: &lt;SEQUENCES&gt;</code>, non parte</td><td class="src">help + no-arg run</td></tr>
+          <tr><td class="flag-cell">-O gfa, --output-type</td><td class="kind"><span class="lvl lvl-graph">grafo</span> <span class="kbadge">output-type</span></td><td class="why">Il parser non lo richiede, ma il default è <code>poasta</code> (formato binario <code>.poasta</code>). Per un grafo interoperabile (GFA/DOT consumabile a valle) serve <code>-O gfa</code>. <code>-O fasta</code> darebbe invece un MSA</td><td class="src">help</td></tr>
+          <tr><td class="flag-cell">-o, --output</td><td class="kind"><span class="kbadge">opz.</span></td><td class="why"><b>Non obbligatorio</b>: se assente scrive su stdout. Il repo lo passa per fissare il percorso</td><td class="src">help</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note gold"><span class="note-head">Nel repo — runbook-only</span><code>poasta align -O gfa -o /{OUTPUT_DIR}/poasta_{DS}.gfa /{PAN_INPUT}</code>. Passa sia <code>-O gfa</code> (formato) sia <code>-o</code> (percorso) più il positional PanSN. Single-thread (nessun flag thread).</div>
+    </section>
+
+    <!-- VG -->
+    <section id="vg">
+      <h2>vg <span class="repo">vgteam/vg · v1.71.0</span></h2>
+      <p class="subject-note">Costruisce solo <code>vg construct</code>. <code>-r</code> (o <code>-M</code>) basta a partire, ma dà un grafo <em>lineare</em>: per un grafo di variazione serve <code>-v</code>. Output su stdout → redirect obbligatorio.</p>
+      <div class="cmd-block"><span class="req">vg construct -r &lt;ref.fa&gt;</span> [-v &lt;var.vcf.gz&gt;] <span class="req">&gt; out.vg</span>   <span class="cmt"># -v per un grafo di variazione</span></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Argomento</th><th>Livello</th><th>Perché è obbligatorio</th><th>Fonte</th></tr></thead>
+        <tbody>
+          <tr><td class="flag-cell">-r (o -M)</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">input</span></td><td class="why">Serve almeno uno tra <code>-r</code> (reference→grafo lineare) e <code>-M</code> (MSA). Senza input nulla di sensato viene costruito. <code>-r</code> da solo basta a far girare il tool</td><td class="src">help</td></tr>
+          <tr><td class="flag-cell">&gt; out.vg</td><td class="kind"><span class="lvl lvl-run">esecuzione</span> <span class="kbadge">output</span></td><td class="why">Il grafo va su stdout (<code>usage: vg construct … &gt;new.vg</code>); senza redirect è perso</td><td class="src">help</td></tr>
+          <tr><td class="flag-cell">-v, --vcf</td><td class="kind"><span class="lvl lvl-graph">grafo</span> <span class="kbadge">input</span></td><td class="why"><b>Non richiesto per partire</b>, ma senza il grafo è solo il reference lineare: per un <em>pangenoma</em> (grafo di variazione) le varianti del VCF vanno incluse con <code>-v</code></td><td class="src">help + repo</td></tr>
+          <tr><td class="flag-cell">-a / -m 32</td><td class="kind"><span class="kbadge">scelte repo</span></td><td class="why"><b>Non obbligatori.</b> <code>-a</code> serve a valle per il GBWT; <code>-m 32</code> è letteralmente il default. Scelte della pipeline, non del <code>construct</code></td><td class="src">help (-m default 32)</td></tr>
+          <tr><td class="flag-cell">header FASTA = contig VCF</td><td class="kind"><span class="lvl lvl-pre">precondizione</span></td><td class="why">L'header del reference deve combaciare con l'id del contig nel VCF, altrimenti <code>construct</code> produce un grafo vuoto/non valido. Il repo riscrive l'header in un prep-step</td><td class="src">repo prep-step</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="note-head">Nel repo</span>Tool <code>MC_vg</code>: <code>vg construct -r mc_vg_ref.fa -v mc_vg_variants.vcf.gz -a -m 32 &gt; mc_vg_graph.vg</code>, seguito da <code>view</code>/<code>index</code>/<code>gbwt</code>/<code>convert</code> (post-processing non generativo). Prep: riscrittura header + <code>faidx</code>/<code>tabix</code>.</div>
+    </section>
+
+    <!-- SUMMARY -->
+    <section id="summary">
+      <h2>Tabella riassuntiva</h2>
+      <p>Comando minimo per tool. <span class="lvl lvl-run">esecuzione</span> = serve o non parte; <span class="lvl lvl-graph">grafo</span> = serve per un grafo (interoperabile); <span class="lvl lvl-pre">precondizione</span> = file/stato a monte.</p>
+      <div class="table-scroll"><table class="summary">
+        <thead><tr><th>Tool</th><th>Comando minimo (obbligatori)</th><th>Precondizioni / note grafo</th></tr></thead>
+        <tbody>
+          <tr><td class="tool">Minigraph</td><td class="min">minigraph -xggs ref.fa query.fa &gt; out.gfa</td><td class="pre">≥1 query oltre al ref; <code>-c</code> raccomandato</td></tr>
+          <tr><td class="tool">Cactus (≡ PC)</td><td class="min">cactus jobStore seqFile outputHal</td><td class="pre">seqFile con albero Newick; jobStore non pre-esistente</td></tr>
+          <tr><td class="tool">MinigraphCactus</td><td class="min">cactus-pangenome jobStore seqFile --outDir --outName --reference</td><td class="pre">+ <code>--gfa</code>/<code>--vcf</code> per l'output</td></tr>
+          <tr><td class="tool">PGGB</td><td class="min">pggb -i input.fasta -o out_dir</td><td class="pre"><code>input.fasta.fai</code> obbligatorio; <code>-n</code> se non-PanSN</td></tr>
+          <tr><td class="tool">LCPan</td><td class="min">lcpan -vg -r ref.fa -v var.vcf</td><td class="pre"><code>ref.fa.fai</code> obbligatorio; modo vg/vgx</td></tr>
+          <tr><td class="tool">Theseus</td><td class="min">theseus_msa -s in.fa -f out.gfa -t 1</td><td class="pre"><code>-t 1</code> o l'output è MSA, non GFA</td></tr>
+          <tr><td class="tool">POASTA</td><td class="min">poasta align -O gfa input.fasta</td><td class="pre"><code>-O gfa</code> o l'output è il binario <code>.poasta</code></td></tr>
+          <tr><td class="tool">vg (construct)</td><td class="min">vg construct -r ref.fa [-v var.vcf.gz] &gt; out.vg</td><td class="pre"><code>-v</code> per grafo di variazione; header FASTA = contig VCF</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note blue"><span class="note-head">Pattern ricorrente</span>Tre tool (<b>Theseus</b>, <b>POASTA</b>, <b>vg</b>) <em>partono</em> anche con meno flag, ma <b>senza un flag di formato/contenuto non producono il grafo atteso</b>: <code>-t 1</code> (GFA vs MSA), <code>-O gfa</code> (GFA vs binario), <code>-v</code> (grafo di variazione vs lineare). Per questo "obbligatorio per costruire" &gt; "obbligatorio per eseguire". Inoltre 3 tool richiedono un <b>indice a monte</b> (<code>.fai</code>: PGGB, LCPan; header-match: vg) che non è un flag ma blocca il run.</div>
+    </section>
+
+    <footer>
+      <span>ConstructionBS · mandatory_flags_study</span>
+      <span>8 tool · requisiti minimi</span>
+    </footer>
+  </main>
+</div>
