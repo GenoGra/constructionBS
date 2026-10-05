@@ -1,0 +1,366 @@
+diff --git a/include/theseus/theseus_msa_aligner.h b/include/theseus/theseus_msa_aligner.h
+index 21156c4..eeff90b 100644
+--- a/include/theseus/theseus_msa_aligner.h
++++ b/include/theseus/theseus_msa_aligner.h
+@@ -86,6 +86,17 @@ namespace theseus
+          */
+         void print_as_gfa(std::ostream &out_stream);
+ 
++        /**
++         * @brief Print the current POA graph as GFA plus one reference path and
++         * walk records for the remaining sequences.
++         *
++         */
++        void print_as_gfa_with_paths(
++            std::ostream &out_stream,
++            const std::vector<std::string> &sequence_names,
++            const std::vector<std::size_t> &sequence_lengths,
++            std::size_t reference_sequence_id = 0);
++
+ 
+         /**
+          * @brief Print the current POA graph in MSA format.
+diff --git a/theseus/msa.h b/theseus/msa.h
+index 01cc90b..56aeeae 100644
+--- a/theseus/msa.h
++++ b/theseus/msa.h
+@@ -35,6 +35,7 @@
+ #include <stack>
+ #include <functional>
+ #include <utility>
++#include <cctype>
+ 
+ #include "theseus/graph.h"
+ #include "theseus/alignment.h"
+@@ -73,6 +74,7 @@ namespace theseus {
+         std::vector<int> _seq_weights;
+         std::vector<int> _seq_starts;
+         std::vector<int> _seq_ends;
++        std::vector<std::vector<NodeId>> _seq_compact_paths;
+         NodeId _end_vtx_poa;
+ 
+ 
+@@ -300,8 +302,16 @@ namespace theseus {
+             convert_path(backtrace, poa_path, compacted_G, end_column);
+             bool new_node_exists = false;
+             NodeId new_node_id;
++            std::vector<NodeId> compact_path;
++            auto append_node_to_path = [&](int poa_vertex) {
++                NodeId node_id = _poa_vertices[poa_vertex].associated_node_compact;
++                if (compact_path.empty() || compact_path.back() != node_id) {
++                    compact_path.push_back(node_id);
++                }
++            };
+             long unsigned int k = 0;
+             int i = 0, l = 0, prev_v_poa = poa_path[0], new_v_poa = poa_path[0];
++            append_node_to_path(poa_path[0]);
+             while (k < backtrace.edit_op.size()) {
+                 if (backtrace.edit_op[k] == 'M') {  // Match
+                     prev_v_poa = new_v_poa;
+@@ -309,6 +319,7 @@ namespace theseus {
+                     _poa_vertices[new_v_poa].sequence_IDs.push_back(seq_ID);
+                     _poa_vertices[new_v_poa].weight += weight;
+                     update_poa_edge(prev_v_poa, new_v_poa, compacted_G);
++                    append_node_to_path(new_v_poa);
+                     i += 1;
+                     l += 1;
+                     new_node_exists = false;
+@@ -318,6 +329,7 @@ namespace theseus {
+                     new_v_poa = poa_path[l + 1];
+                     update_poa_vertex(new_v_poa, new_node_id, new_seq[i], new_node_exists, compacted_G, seq_ID, weight);
+                     update_poa_edge(prev_v_poa, new_v_poa, compacted_G);
++                    append_node_to_path(new_v_poa);
+                     i += 1;
+                     l += 1;
+                 }
+@@ -346,6 +358,7 @@ namespace theseus {
+                     prev_v_poa = new_v_poa;
+                     new_v_poa  = _poa_vertices.size() - 1;
+                     update_poa_edge(prev_v_poa, new_v_poa, compacted_G);
++                    append_node_to_path(new_v_poa);
+                     i += 1;
+                 }
+                 else {
+@@ -356,6 +369,8 @@ namespace theseus {
+             prev_v_poa = new_v_poa;
+             // Add edge to the sink/source node, as no edit operation covers it?
+             update_poa_edge(prev_v_poa, poa_path[poa_path.size() - 1], compacted_G); // Add the edge to the sink node
++            append_node_to_path(poa_path[poa_path.size() - 1]);
++            _seq_compact_paths.push_back(std::move(compact_path));
+             // Update sequence weight, start poa vertex and end poa vertex
+             _seq_weights.push_back(weight);
+             if (new_seq.size() > 0) {
+@@ -418,11 +433,13 @@ namespace theseus {
+ 
+             // Update start poa vertex, end poa vertex and sequence weight
+             if (G.node_size(1) > 0) {
++                _seq_compact_paths.push_back({0, 1, 2});
+                 _seq_weights.push_back(initial_weight);
+                 _seq_starts.push_back(1);
+                 _seq_ends.push_back(G.node_size(1));
+             }
+             else {
++                _seq_compact_paths.push_back({0, 2});
+                 _seq_weights.push_back(initial_weight);
+                 _seq_starts.push_back(-1);
+                 _seq_ends.push_back(-1);
+@@ -685,6 +702,109 @@ namespace theseus {
+         }
+ 
+ 
++        std::string sanitize_gfa_name(const std::string &raw_name, int fallback_id) const {
++            if (raw_name.empty()) {
++                return "sequence_" + std::to_string(fallback_id);
++            }
++            std::string sanitized = raw_name;
++            for (char &ch : sanitized) {
++                if (std::isspace(static_cast<unsigned char>(ch))) {
++                    ch = '_';
++                }
++            }
++            return sanitized;
++        }
++
++        std::vector<NodeId> visible_compact_path(const Graph &graph, std::size_t seq_id) const {
++            std::vector<NodeId> visible_path;
++            if (seq_id >= _seq_compact_paths.size()) {
++                return visible_path;
++            }
++            for (NodeId node_id : _seq_compact_paths[seq_id]) {
++                NodeView node = graph.node(node_id);
++                if (node.sequence.empty()) {
++                    continue;
++                }
++                if (visible_path.empty() || visible_path.back() != node_id) {
++                    visible_path.push_back(node_id);
++                }
++            }
++            return visible_path;
++        }
++
++        void print_paths_as_gfa(
++            std::ostream &gfa_output,
++            const Graph &graph,
++            const std::vector<std::string> &sequence_names,
++            const std::vector<std::size_t> &sequence_lengths,
++            std::size_t reference_sequence_id) const {
++            auto build_walk = [](const std::vector<NodeId> &node_path) {
++                std::string walk;
++                for (NodeId node_id : node_path) {
++                    walk.push_back('>');
++                    walk += std::to_string(node_id);
++                }
++                return walk;
++            };
++            auto build_path = [](const std::vector<NodeId> &node_path) {
++                std::string path;
++                for (std::size_t i = 0; i < node_path.size(); ++i) {
++                    if (i > 0) {
++                        path.push_back(',');
++                    }
++                    path += std::to_string(node_path[i]);
++                    path.push_back('+');
++                }
++                return path;
++            };
++
++            if (reference_sequence_id < _seq_compact_paths.size()) {
++                std::vector<NodeId> ref_path;
++                if (reference_sequence_id < _seq_starts.size()
++                    && reference_sequence_id < _seq_ends.size()
++                    && _seq_starts[reference_sequence_id] >= 0
++                    && _seq_ends[reference_sequence_id] >= _seq_starts[reference_sequence_id]) {
++                    for (int poa_vertex = _seq_starts[reference_sequence_id];
++                         poa_vertex <= _seq_ends[reference_sequence_id];
++                         ++poa_vertex) {
++                        NodeId node_id = _poa_vertices[poa_vertex].associated_node_compact;
++                        NodeView node = graph.node(node_id);
++                        if (node.sequence.empty()) {
++                            continue;
++                        }
++                        if (ref_path.empty() || ref_path.back() != node_id) {
++                            ref_path.push_back(node_id);
++                        }
++                    }
++                }
++                if (ref_path.empty()) {
++                    ref_path = visible_compact_path(graph, reference_sequence_id);
++                }
++                if (!ref_path.empty()) {
++                    std::string ref_name = reference_sequence_id < sequence_names.size()
++                        ? sanitize_gfa_name(sequence_names[reference_sequence_id], static_cast<int>(reference_sequence_id))
++                        : sanitize_gfa_name("reference", static_cast<int>(reference_sequence_id));
++                    gfa_output << "P\t" << ref_name << "\t" << build_path(ref_path) << "\t*\n";
++                }
++            }
++
++            for (std::size_t seq_id = 0; seq_id < _seq_compact_paths.size(); ++seq_id) {
++                if (seq_id == reference_sequence_id) {
++                    continue;
++                }
++                std::vector<NodeId> walk_nodes = visible_compact_path(graph, seq_id);
++                if (walk_nodes.empty()) {
++                    continue;
++                }
++                std::string seq_name = seq_id < sequence_names.size()
++                    ? sanitize_gfa_name(sequence_names[seq_id], static_cast<int>(seq_id))
++                    : sanitize_gfa_name("sequence", static_cast<int>(seq_id));
++                std::size_t seq_length = seq_id < sequence_lengths.size() ? sequence_lengths[seq_id] : 0;
++                gfa_output << "W\t" << seq_name << "\t0\t" << seq_name << "\t0\t"
++                           << seq_length << "\t" << build_walk(walk_nodes) << "\n";
++            }
++        }
++
+         /**
+          * @brief Convert the POA graph to a FASTA file (MSA format)
+          *
+diff --git a/theseus/theseus_aligner_impl.cpp b/theseus/theseus_aligner_impl.cpp
+index 7c8716d..6961a6d 100644
+--- a/theseus/theseus_aligner_impl.cpp
++++ b/theseus/theseus_aligner_impl.cpp
+@@ -831,6 +831,19 @@ void TheseusAlignerImpl::print_as_gfa(std::ostream &gfa_output)
+   print_as_gfa_internal(gfa_output);
+ }
+ 
++void TheseusAlignerImpl::print_as_gfa_with_paths(
++    std::ostream &gfa_output,
++    const std::vector<std::string> &sequence_names,
++    const std::vector<std::size_t> &sequence_lengths,
++    std::size_t reference_sequence_id)
++{
++  print_as_gfa_internal(gfa_output);
++  if (_is_msa && _poa_graph) {
++    _poa_graph->print_paths_as_gfa(
++        gfa_output, _graph, sequence_names, sequence_lengths, reference_sequence_id);
++  }
++}
++
+ // Print as msa (can only call from TheseusMSA)
+ void TheseusAlignerImpl::print_as_msa(std::ostream &out_stream) {
+   _poa_graph->poa_to_fasta(_seq_ID, out_stream);
+diff --git a/theseus/theseus_aligner_impl.h b/theseus/theseus_aligner_impl.h
+index c589a48..41e6ed7 100644
+--- a/theseus/theseus_aligner_impl.h
++++ b/theseus/theseus_aligner_impl.h
+@@ -98,6 +98,17 @@ public:
+      */
+     void print_as_gfa(std::ostream &gfa_output);
+ 
++    /**
++     * @brief Output the current graph in GFA format and include one reference
++     * path plus walk records for the remaining sequences when in MSA mode.
++     *
++     */
++    void print_as_gfa_with_paths(
++        std::ostream &gfa_output,
++        const std::vector<std::string> &sequence_names,
++        const std::vector<std::size_t> &sequence_lengths,
++        std::size_t reference_sequence_id = 0);
++
+     /**
+      * @brief Output the current MSA in MSA format.
+      *
+diff --git a/theseus/theseus_msa_aligner.cpp b/theseus/theseus_msa_aligner.cpp
+index 67c1ae1..18025b5 100644
+--- a/theseus/theseus_msa_aligner.cpp
++++ b/theseus/theseus_msa_aligner.cpp
+@@ -83,6 +83,15 @@ void TheseusMSA::print_as_gfa(std::ostream &out_stream) {
+     msa_aligner_impl_->print_as_gfa(out_stream);
+ }
+ 
++void TheseusMSA::print_as_gfa_with_paths(
++    std::ostream &out_stream,
++    const std::vector<std::string> &sequence_names,
++    const std::vector<std::size_t> &sequence_lengths,
++    std::size_t reference_sequence_id) {
++    msa_aligner_impl_->print_as_gfa_with_paths(
++        out_stream, sequence_names, sequence_lengths, reference_sequence_id);
++}
++
+ /**
+  * @brief Print the current POA graph in MSA format.
+  *
+diff --git a/tools/theseus_msa.cpp b/tools/theseus_msa.cpp
+index 4eaa056..f0dc324 100644
+--- a/tools/theseus_msa.cpp
++++ b/tools/theseus_msa.cpp
+@@ -65,9 +65,27 @@ struct CMDArgs {
+  * @param sequences Vector to store the sequences
+  * @param args Arguments containing the file name
+  */
++std::string sanitize_sequence_name(const std::string &header, int index)
++{
++    std::string name = header;
++    std::size_t first_space = name.find_first_of(" \t");
++    if (first_space != std::string::npos) {
++        name.resize(first_space);
++    }
++    if (name.empty()) {
++        name = "sequence_" + std::to_string(index);
++    }
++    for (char &ch : name) {
++        if (ch == '\t' || ch == ' ') {
++            ch = '_';
++        }
++    }
++    return name;
++}
++
+ void read_sequences(
+     std::vector<std::string> &sequences,
+-    std::vector<int> &weights,
++    std::vector<std::string> &sequence_names,
+     CMDArgs &args)
+ {
+ 
+@@ -93,11 +111,7 @@ void read_sequences(
+             if (num > 0) sequences.push_back(sequence);
+             sequence.clear();
+             num += 1;
+-            // std::istringstream iss(line);
+-            // char header;
+-            // int weight;
+-            // iss >> header >> weight;
+-            // weights.push_back(weight);
++            sequence_names.push_back(sanitize_sequence_name(line.substr(1), num - 1));
+         }
+         else
+         {
+@@ -119,7 +133,7 @@ void read_sequences(
+  * @brief Print the help message.
+  */
+ void help() {
+-    std::cout << "Usage: pericles [OPTIONS]\n"
++    std::cout << "Usage: theseus_msa [OPTIONS]\n"
+                  "Options:\n"
+                  "  -m, --match <int>           The match penalty                                       [default=0]\n"
+                  "  -x, --mismatch <int>        The mismatch penalty                                    [default=2]\n"
+@@ -216,8 +230,17 @@ int main(int argc, char *const *argv) {
+     theseus::Heuristics heuristics;
+     // Read the sequences for the MSA
+     std::vector<std::string> sequences;
+-    std::vector<int> weights;
+-    read_sequences(sequences, weights, args);
++    std::vector<std::string> sequence_names;
++    read_sequences(sequences, sequence_names, args);
++    if (sequences.empty()) {
++        std::cerr << "No sequences were loaded from the dataset file" << std::endl;
++        return 1;
++    }
++    std::vector<std::size_t> sequence_lengths;
++    sequence_lengths.reserve(sequences.size());
++    for (const auto &sequence : sequences) {
++        sequence_lengths.push_back(sequence.size());
++    }
+ 
+     // Prepare the data
+     std::vector<theseus::Alignment> alignments(sequences.size());
+@@ -239,7 +262,7 @@ int main(int argc, char *const *argv) {
+     if (args.output_type == 0) {
+         aligner.print_as_msa(output_file);
+     } else if (args.output_type == 1) {
+-        aligner.print_as_gfa(output_file);
++        aligner.print_as_gfa_with_paths(output_file, sequence_names, sequence_lengths, 0);
+     } else if (args.output_type == 2) {
+         std::string consensus = aligner.heaviest_bundle_consensus();
+         output_file << ">Consensus\n" << consensus << "\n";
